@@ -29,24 +29,26 @@ func NewEdgelet(cloudAddress string) *edgelet {
 
 func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 	logrus.Info("Join Request:", req)
-
 	url := fmt.Sprintf("%s/edgenode", e.cloudAddress)
 	reqbyte, err := proto.Marshal(req)
 	if err != nil {
+		logrus.Error("proto marshal failed,err=", err)
 		return nil, err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(reqbyte))
+	resp, err := http.Post(url, "application/x-protobuf", bytes.NewBuffer(reqbyte))
 	if err != nil {
+		logrus.Error("post failed,err=", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	respbyte, _ := ioutil.ReadAll(resp.Body)
+	logrus.Info("statusCode : ", resp.StatusCode, " respBody:", string(respbyte))
 	respbody := pb.JoinResponse{}
 	err = proto.Unmarshal(respbyte, &respbody)
 	if err != nil {
+		logrus.Error("proto Unmarshal failed,err=", err)
 		return nil, err
 	}
-	logrus.Info(&respbody)
 	isNeedNotify := false
 	if len(respbody.VkUrl) > 0 {
 		e.mutex.Lock()
@@ -59,7 +61,7 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 	if isNeedNotify {
 		e.notify <- struct{}{}
 	}
-	return nil, nil
+	return &respbody, nil
 }
 
 func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetResponse, error) {

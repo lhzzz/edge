@@ -35,7 +35,7 @@ func NewEdgeCtlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 
 	cmds.AddCommand(cmd.NewJoinCMD(os.Stdout, &edgectlConf))
 	cmds.AddCommand(cmd.NewResetCMD(os.Stdout, &edgectlConf))
-	cmds.SetUsageFunc(edgeCtlUsageFunc)
+	//cmds.SetUsageFunc(edgeCtlUsageFunc)
 	cmds.SetHelpFunc(edgeCtlHelpFunc)
 	return cmds
 }
