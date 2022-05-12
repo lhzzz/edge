@@ -3,7 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
-	"edge/internal/edgelet/pb"
+	"edge/api/pb"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +28,8 @@ func NewEdgelet(cloudAddress string) *edgelet {
 }
 
 func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
+	logrus.Info("Join Request:", req)
+
 	url := fmt.Sprintf("%s/edgenode", e.cloudAddress)
 	reqbyte, err := proto.Marshal(req)
 	if err != nil {

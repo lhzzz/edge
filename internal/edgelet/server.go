@@ -1,8 +1,9 @@
 package edgelet
 
 import (
-	"edge/internal/edgelet/pb"
+	"edge/api/pb"
 	"edge/internal/edgelet/service"
+	"edge/pkg/common"
 	"net"
 	"os"
 	"os/signal"
@@ -15,6 +16,9 @@ import (
 )
 
 func Run(cloudAddress string, runAddress string) {
+
+	common.InitLogger()
+
 	grpcServer := grpc.NewServer()
 	edgelet := service.NewEdgelet(cloudAddress)
 	//健康检测
