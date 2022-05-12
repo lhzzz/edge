@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"edge/api/pb"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
 
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 )
 
 type edgelet struct {
@@ -29,8 +29,8 @@ func NewEdgelet(cloudAddress string) *edgelet {
 
 func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 	logrus.Info("Join Request:", req)
-	url := fmt.Sprintf("%s/edgenode", e.cloudAddress)
-	reqbyte, err := proto.Marshal(req)
+	url := fmt.Sprintf("%s/edge/registry/node", e.cloudAddress)
+	reqbyte, err := json.Marshal(req)
 	if err != nil {
 		logrus.Error("proto marshal failed,err=", err)
 		return nil, err
@@ -44,7 +44,7 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 	respbyte, _ := ioutil.ReadAll(resp.Body)
 	logrus.Info("statusCode : ", resp.StatusCode, " respBody:", string(respbyte))
 	respbody := pb.JoinResponse{}
-	err = proto.Unmarshal(respbyte, &respbody)
+	err = json.Unmarshal(respbyte, &respbody)
 	if err != nil {
 		logrus.Error("proto Unmarshal failed,err=", err)
 		return nil, err

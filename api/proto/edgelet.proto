@@ -1,7 +1,9 @@
 syntax = "proto3";
+import public "common.proto";
 
 package pb;
 option go_package=".;pb";
+
 
 message JoinRequest {
     string node_name = 1;
@@ -10,9 +12,8 @@ message JoinRequest {
 }
 
 message JoinResponse {
-    int32 code = 1;
-    string msg = 2;
-    string vk_url = 3;//云端创建了ingress,返回的路由路径,通过这个建立websocket连接
+    Common.Error error = 1;
+    string vk_url = 2;//云端创建了ingress,返回的路由路径,通过这个建立websocket连接
 }
 
 

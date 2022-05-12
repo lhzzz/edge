@@ -139,8 +139,8 @@ func joinRunner(edgeletAddress string, opt *joinOptions) error {
 		logrus.Error("Join failed,err=", err)
 		return err
 	}
-	if resp.Code != 200 {
-		return fmt.Errorf(resp.Msg)
+	if resp.Error != nil {
+		return fmt.Errorf(resp.Error.Msg)
 	}
 	fmt.Fprintf(opt.writer, joinWorkerNodeDoneMsg)
 	return nil
