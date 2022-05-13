@@ -31,14 +31,14 @@ spec:
       containers:
       - name: virtual-kubelet
         image: vk:latest
-        command: 
-			  - /home/virtual-kubelet
-		    args:
-			  - --nodename={{.NodeName}}
-			  - --namespace={{.NodeNamespace}}
-			  - --provider-config=cci.toml
-			  - --disable-taint=true 
-			  - --provider=mock
+        command:
+        - /home/virtual-kubelet
+        args:
+        - --nodename={{.NodeName}}
+        - --namespace={{.NodeNamespace}}
+        - --provider-config=cci.toml
+        - --disable-taint=true
+        - --provider=mock
         imagePullPolicy: IfNotPresent
         env:
           - name: APISERVER_CERT_LOCATION

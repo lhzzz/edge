@@ -39,6 +39,7 @@ func getK8sClient() *kubernetes.Clientset {
 */
 func createNode(c *gin.Context) {
 	req := &pb.JoinRequest{}
+	resp := &pb.JoinResponse{}
 	if err := c.BindJSON(req); err != nil {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
@@ -56,7 +57,7 @@ func createNode(c *gin.Context) {
 	}
 	if err := kubeclient.CreateResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
 		logrus.Error("CreateResourceWithFile failed,err=", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 
@@ -74,10 +75,10 @@ func createNode(c *gin.Context) {
 	}
 	if err := kubeclient.AppendPathToIngress(getK8sClient(), "", constant.EdgeIngress, path); err != nil {
 		logrus.Error("create Ingress failed,err=", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	resp := &pb.JoinResponse{}
+
 	resp.VkUrl = route
 	c.JSON(http.StatusOK, resp)
 }
