@@ -40,5 +40,6 @@ jobs:
     
     - name: Build
       run: |
+        chmod +x api/make_pb.sh
         chmod +x build.sh && ./build.sh
         ls -l bin/
