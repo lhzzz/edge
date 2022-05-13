@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-registry
+  labels:
+    k8s-app: edge-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: edge-registry
+  template:
+    metadata:
+      labels:
+        k8s-app: edge-registry
+    spec:
+      containers:
+      - name: edge-registry
+        image: edge-registry:v1.0
+        command:
+          - /usr/local/bin/edge-registry
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+            httpGet:
+              path: /edge/registry/ping
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 60
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 1
+      nodeSelector:
+              virtual: "false"

@@ -4,7 +4,7 @@ const VIRTUAL_KUBELET = "virtual_kubelet.yaml"
 
 //证书是通过挂载的方式打进去的，这里需要修改
 //因为virtual-kubelet需要和apiserver进行交互，创建Node
-const virtualKubeletYaml = `
+const VirtualKubeletYaml = `
 ---
 apiVersion: v1
 kind: Namespace
@@ -69,6 +69,9 @@ spec:
   - name: kubelet
     port: 10251
     targetPort: 10251
+  - name: http
+	port: 80
+	targetPort: 80
   selector:
     k8s-app: {{.NodeName}}
 `

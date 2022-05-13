@@ -30,7 +30,9 @@ func (es *EdgeRegistryServer) Run() {
 		registry.POST("/node", createNode)
 		registry.DELETE("/node", deleteNode)
 		registry.GET("/node/:nodeName", describeNode)
+		registry.GET("/ping", healthCheck)
 	}
+
 	<-es.stopCh
 	logrus.Info("Received a program exit signal")
 	return
