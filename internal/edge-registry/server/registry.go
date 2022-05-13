@@ -89,5 +89,5 @@ func describeNode(c *gin.Context) {
 }
 
 func healthCheck(c *gin.Context) {
-	c.Status(http.StatusOK)
+	c.JSON(http.StatusOK, "pong")
 }

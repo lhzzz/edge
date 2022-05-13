@@ -12,5 +12,5 @@ func main() {
 	if err != nil {
 		logrus.Fatal("CreateEdgeRegistry failed,err=", err)
 	}
-	rs.Run()
+	rs.Run(":80")
 }
