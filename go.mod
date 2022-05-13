@@ -10,14 +10,11 @@ require (
 	github.com/lithammer/dedent v1.1.0
 	github.com/onsi/gomega v1.15.0 // indirect
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.11.0 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.11.0
 	github.com/ugorji/go v1.2.7 // indirect
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
-	go.uber.org/zap v1.19.0 // indirect
 	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88 // indirect
 	golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
@@ -32,11 +29,12 @@ require (
 	k8s.io/kubernetes v1.19.14
 	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a // indirect
 	sigs.k8s.io/yaml v1.2.0
+	//go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
 )
 
 replace (
-	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200329194405-dd816f0735f8
-	google.golang.org/grpc v1.46.0 => google.golang.org/grpc v1.26.0
+	// go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200329194405-dd816f0735f8
+	// google.golang.org/grpc v1.46.0 => google.golang.org/grpc v1.26.0
 	gopkg.in/yaml.v2 => gopkg.in/yaml.v2 v2.2.8
 	gopkg.in/yaml.v3 => gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 	k8s.io/api => k8s.io/api v0.20.5
