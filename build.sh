@@ -1,7 +1,8 @@
 #! /bin/bash
 
+apiDir=$PWD/api/
 cd api/
-./make_pb.sh
+./make_pb.sh $apiDir/pb $apiDir/proto
 cd ..
 
 go build -o bin/edgelet cmd/edgelet/main.go &

@@ -1,8 +1,11 @@
 PROJECT_NAME := "edge"
 
-.PHONY: all build clean 
+.PHONY: all gen build clean 
 
 all: build
+
+gen: 
+	@chmod +x api/* && ./api/make_pb.sh api/pb api/proto
 
 build:
 	@chmod +x build.sh && ./build.sh

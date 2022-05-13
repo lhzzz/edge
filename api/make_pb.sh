@@ -1,2 +1,6 @@
 # !/bin/bash
-protoc -I./proto --go_out=plugins=grpc:./pb/ proto/*.proto 
+
+outputPath=$1
+protoPath=$2
+
+protoc -I$protoPath --go_out=plugins=grpc:$outputPath $protoPath/*.proto
