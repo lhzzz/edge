@@ -61,8 +61,9 @@ func createNode(c *gin.Context) {
 	}
 
 	pathType := netv1.PathTypePrefix
+	route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, req.NodeName)
 	path := netv1.HTTPIngressPath{
-		Path:     fmt.Sprintf(constant.EdgeIngressPrefixFormat, req.NodeName),
+		Path:     route,
 		PathType: &pathType,
 		Backend: netv1.IngressBackend{
 			Service: &netv1.IngressServiceBackend{
@@ -77,7 +78,8 @@ func createNode(c *gin.Context) {
 		return
 	}
 	resp := &pb.JoinResponse{}
-	c.JSON(http.StatusOK, &resp)
+	resp.VkUrl = route
+	c.JSON(http.StatusOK, resp)
 }
 
 func deleteNode(c *gin.Context) {
