@@ -32,3 +32,4 @@ spec:
             failureThreshold: 1
       nodeSelector:
               virtual: "false"
+      serviceAccountName: edge-registry
