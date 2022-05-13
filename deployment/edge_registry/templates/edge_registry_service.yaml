@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: edge-registry
-  #namespace: {{.Namespace}}
+  namespace: edge-cluster
 spec:
   ports:
     - name: http

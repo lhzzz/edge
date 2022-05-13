@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: edge-registry
+  namespace: edge-cluster
   labels:
     k8s-app: edge-registry
 spec:

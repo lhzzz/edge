@@ -15,6 +15,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{.NodeName}}
+  namespace: edge-cluster
   labels:
     k8s-app: {{.NodeName}}
 spec:
@@ -64,6 +65,7 @@ metadata:
   labels:
     k8s-app: {{.NodeName}}
   name: {{.NodeName}}
+  namespace: edge-cluster
 spec:
   ports:
   - name: kubelet
