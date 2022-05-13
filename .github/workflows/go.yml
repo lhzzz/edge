@@ -40,6 +40,4 @@ jobs:
     
     - name: Build
       run: |
-        echo $PWD
-        ls -l
-        ./buid.sh
+        chmod +x build.sh && ./build.sh
