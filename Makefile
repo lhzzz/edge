@@ -1,6 +1,6 @@
 PROJECT_NAME := "edge"
 
-.PHONY: all gen build clean 
+.PHONY: all gen build image clean 
 
 all: build
 
@@ -9,6 +9,9 @@ gen:
 
 build:
 	@chmod +x build.sh && ./build.sh
+
+image:
+	@chmod +x image_build.sh && ./image_build.sh
 
 clean:
 	@rm api/pb/* bin/*
