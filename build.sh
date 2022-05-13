@@ -1,6 +1,6 @@
 #! /bin/bash
 
-apiDir=$PWD/api/
+apiDir=$PWD/api
 cd api/
 ./make_pb.sh $apiDir/pb $apiDir/proto
 cd ..
