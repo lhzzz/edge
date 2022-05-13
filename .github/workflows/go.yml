@@ -41,3 +41,4 @@ jobs:
     - name: Build
       run: |
         chmod +x build.sh && ./build.sh
+        ls -l bin/
