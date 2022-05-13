@@ -59,4 +59,5 @@ jobs:
       run: |
         chmod +x api/*
         cp api/bin/* /usr/local/bin/
+        chmod +x /usr/local/bin/*
         make
