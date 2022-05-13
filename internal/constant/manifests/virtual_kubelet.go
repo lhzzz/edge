@@ -72,8 +72,8 @@ spec:
     port: 10251
     targetPort: 10251
   - name: http
-	port: 80
-	targetPort: 80
+  port: 80
+  targetPort: 80
   selector:
     k8s-app: {{.NodeName}}
 `
