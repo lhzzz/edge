@@ -25,22 +25,22 @@ jobs:
 #         go get -u golang.org/x/lint/golint 
 #         make lint
   
-  gen: 
-    name: Gen Protobuf
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@master
+  # gen: 
+  #   name: Gen Protobuf
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - name: Checkout Code
+  #     uses: actions/checkout@master
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.16
+  #   - name: Set up Go
+  #     uses: actions/setup-go@v3
+  #     with:
+  #       go-version: 1.16
       
-    - name: Gen 
-      run: |
-        export PATH=$PATH:api/bin/
-        make gen
+  #   - name: Gen 
+  #     run: |
+  #       cp api/bin/* /usr/local/bin/*
+  #       make gen
 
   build:
     name: Build
@@ -57,4 +57,5 @@ jobs:
     
     - name: Build
       run: |
-        make build
+        cp api/bin/* /usr/local/bin/*
+        make
