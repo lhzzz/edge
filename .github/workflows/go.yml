@@ -57,6 +57,6 @@ jobs:
     
     - name: Build
       run: |
-        chmod +x api/bin/*
+        chmod +x api/*
         cp api/bin/* /usr/local/bin/
         make
