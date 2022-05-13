@@ -54,7 +54,7 @@ func createNode(c *gin.Context) {
 		"NodeName":      req.NodeName,
 		"NodeNamespace": namespace,
 	}
-	if err := kubeclient.CreateResourceWithFile(cs, manifests.VirtualKubeletYaml, option); err != nil {
+	if err := kubeclient.CreateResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
 		logrus.Error("CreateResourceWithFile failed,err=", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
@@ -71,7 +71,7 @@ func createNode(c *gin.Context) {
 			},
 		},
 	}
-	if err := kubeclient.AppendPathToIngress(cs, "", constant.EdgeIngress, path); err != nil {
+	if err := kubeclient.AppendPathToIngress(getK8sClient(), "", constant.EdgeIngress, path); err != nil {
 		logrus.Error("create Ingress failed,err=", err)
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return

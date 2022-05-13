@@ -20,6 +20,10 @@ type edgelet struct {
 	notify       chan struct{}
 }
 
+const (
+	registryUrlFmt = "%s/edge/registry/node"
+)
+
 func NewEdgelet(cloudAddress string) *edgelet {
 	return &edgelet{
 		cloudAddress: cloudAddress,
@@ -29,7 +33,7 @@ func NewEdgelet(cloudAddress string) *edgelet {
 
 func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 	logrus.Info("Join Request:", req)
-	url := fmt.Sprintf("%s/edge/registry/node", e.cloudAddress)
+	url := fmt.Sprintf(registryUrlFmt, e.cloudAddress)
 	reqbyte, err := json.Marshal(req)
 	if err != nil {
 		logrus.Error("proto marshal failed,err=", err)
