@@ -13,21 +13,25 @@ type EdgeRegistryServer struct {
 }
 
 func CreateEdgeRegistry(stopCh <-chan struct{}) (*EdgeRegistryServer, error) {
+	if err := initResource(); err != nil {
+		return nil, err
+	}
+
 	return &EdgeRegistryServer{
 		edgeConfig: option.NewDefaultOptions(),
 		stopCh:     stopCh,
 	}, nil
 }
 
-func (es *EdgeRegistryServer) Run() error {
+func (es *EdgeRegistryServer) Run() {
 	r := gin.Default()
 	registry := r.Group("/edge/registry")
 	{
-		registry.POST("/node", CreateNode)
-		registry.DELETE("/node", DeleteNode)
-		registry.GET("/node/:nodeName", DescribeNode)
+		registry.POST("/node", createNode)
+		registry.DELETE("/node", deleteNode)
+		registry.GET("/node/:nodeName", describeNode)
 	}
 	<-es.stopCh
 	logrus.Info("Received a program exit signal")
-	return nil
+	return
 }

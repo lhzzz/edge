@@ -14,7 +14,6 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -28,13 +27,7 @@ const (
 
 func getK8sClient() *kubernetes.Clientset {
 	once.Do(func() {
-		// creates the in-cluster config
-		config, err := rest.InClusterConfig()
-		if err != nil {
-			panic(err.Error())
-		}
-		// creates the clientset
-		clientset, err := kubernetes.NewForConfig(config)
+		clientset, err := kubeclient.GetClientSetInCluster()
 		if err != nil {
 			panic(err.Error())
 		}
@@ -48,7 +41,7 @@ func getK8sClient() *kubernetes.Clientset {
 2、创建一个ingress给这个svc
 3、返回ingress创建的路由
 */
-func CreateNode(c *gin.Context) {
+func createNode(c *gin.Context) {
 	req := &pb.JoinRequest{}
 	if err := c.BindJSON(req); err != nil {
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -104,11 +97,11 @@ func CreateNode(c *gin.Context) {
 	c.JSON(http.StatusOK, &resp)
 }
 
-func DeleteNode(c *gin.Context) {
+func deleteNode(c *gin.Context) {
 
 }
 
-func DescribeNode(c *gin.Context) {
+func describeNode(c *gin.Context) {
 
 }
 

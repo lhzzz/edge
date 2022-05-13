@@ -188,7 +188,7 @@ func createOrUpdateIngress(client kubernetes.Interface, data []byte) error {
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), data, obj); err != nil {
 		return errors.Wrapf(err, "unable to decode %s", reflect.TypeOf(obj).String())
 	}
-	err := CreateOrUpdateIngress(client, obj)
+	err := CreateIngressIfNotExist(client, obj)
 	if err != nil {
 		return err
 	}
