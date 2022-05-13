@@ -14,16 +14,16 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@master
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.16
+#     - name: Set up Go
+#       uses: actions/setup-go@v3
+#       with:
+#         go-version: 1.16
     
-    - name: Lint Go Code
-      run: | 
-        export PATH=$PATH:$(go env GOPATH)/bin # temporary fix. See https://github.com/actions/setup-go/issues/14
-        go get -u golang.org/x/lint/golint 
-        make lint
+#     - name: Lint Go Code
+#       run: | 
+#         export PATH=$PATH:$(go env GOPATH)/bin # temporary fix. See https://github.com/actions/setup-go/issues/14
+#         go get -u golang.org/x/lint/golint 
+#         make lint
         
   build:
     name: Build
