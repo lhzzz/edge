@@ -39,8 +39,7 @@ jobs:
 
     - name: Gen 
       run: |
-        cd api/ 
-        chmod +x * && ./make_pb.sh
+        make gen
 
   build:
     name: Build
@@ -57,5 +56,4 @@ jobs:
     
     - name: Build
       run: |
-        chmod +x build.sh && ./build.sh
-        ls -l bin/
+        make build
