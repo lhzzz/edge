@@ -73,7 +73,7 @@ func createNode(c *gin.Context) {
 			},
 		},
 	}
-	if err := kubeclient.AppendPathToIngress(getK8sClient(), "", constant.EdgeIngress, path); err != nil {
+	if err := kubeclient.AppendPathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, path); err != nil {
 		logrus.Error("create Ingress failed,err=", err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
