@@ -59,6 +59,6 @@ jobs:
       run: |
         export PATH=$PATH:$(go env GOPATH)/bin
         chmod +x api/*
-        cp api/bin/* $GOPATH/bin
-        chmod +x $GOPATH/bin/*
+        cp api/bin/* $(go env GOPATH)/bin
+        chmod +x $(go env GOPATH)/bin/*
         make
