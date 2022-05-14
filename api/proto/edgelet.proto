@@ -22,8 +22,7 @@ message ResetRequest {
 }
 
 message ResetResponse {
-    int32 code = 1;
-    string msg = 2;
+    Common.Error error = 1;
 }
 
 service Edgelet {

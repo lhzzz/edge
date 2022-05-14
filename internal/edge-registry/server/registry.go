@@ -41,11 +41,11 @@ func createNode(c *gin.Context) {
 	req := &pb.JoinRequest{}
 	resp := &pb.JoinResponse{}
 	if err := c.BindJSON(req); err != nil {
-		c.AbortWithStatus(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
 	if req.NodeName == "" || req.Token == "" {
-		c.AbortWithStatus(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
 
@@ -84,7 +84,36 @@ func createNode(c *gin.Context) {
 }
 
 func deleteNode(c *gin.Context) {
+	req := &pb.ResetRequest{}
+	resp := &pb.ResetResponse{}
 
+	if err := c.BindJSON(req); err != nil {
+		c.JSON(http.StatusBadRequest, resp)
+		return
+	}
+	if req.NodeName == "" {
+		c.JSON(http.StatusBadRequest, resp)
+		return
+	}
+
+	namespace := req.NodeName
+	option := map[string]string{
+		"NodeName":      req.NodeName,
+		"NodeNamespace": namespace,
+	}
+	if err := kubeclient.DeleteResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
+		logrus.Error("DeleteResourceWithFile failed,err=", err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
+	}
+	route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, req.NodeName)
+	if err := kubeclient.RemovePathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, route); err != nil {
+		logrus.Error("remove path in Ingress failed,err=", err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 func describeNode(c *gin.Context) {
