@@ -8,9 +8,9 @@ import (
 )
 
 func main() {
-	rs, err := server.CreateEdgeRegistry(util.SetupSignalHandler())
+	er, err := server.CreateEdgeRegistry(util.SetupSignalHandler())
 	if err != nil {
 		logrus.Fatal("CreateEdgeRegistry failed,err=", err)
 	}
-	rs.Run(":80")
+	er.Run(":80")
 }
