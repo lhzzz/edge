@@ -69,6 +69,35 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 }
 
 func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetResponse, error) {
+	logrus.Info("Reset Request:", req)
+	url := fmt.Sprintf(registryUrlFmt, e.cloudAddress)
+	reqbyte, err := json.Marshal(req)
+	if err != nil {
+		logrus.Error("proto marshal failed,err=", err)
+		return nil, err
+	}
+	httpReq, err := http.NewRequest("DELETE", url, bytes.NewBuffer(reqbyte))
+	if err != nil {
+		logrus.Error("make delete request failed,err=", err)
+		return nil, err
+	}
+	httpResp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		logrus.Error("post failed,err=", err)
+		return nil, err
+	}
+	defer httpResp.Body.Close()
 
+	body, _ := ioutil.ReadAll(httpResp.Body)
+	resp := pb.ResetResponse{}
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		logrus.Error("proto Unmarshal failed,err=", err)
+		return nil, err
+	}
+	if resp.Error != nil {
+		logrus.Error("response error,err=", fmt.Errorf(resp.Error.Msg))
+		return nil, nil
+	}
 	return nil, nil
 }
