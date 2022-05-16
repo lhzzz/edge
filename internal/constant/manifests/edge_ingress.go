@@ -17,6 +17,7 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-origin: '*'
     nginx.ingress.kubernetes.io/enable-cors: 'true'
   name: edge-ingress
+  namespace: edge-cluster
 spec:
   ingressClassName: nginx
   rules:

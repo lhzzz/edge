@@ -1,6 +1,7 @@
 #! /bin/bash
 
 apiDir=$PWD/api
+chmod +x $apiDir/*
 cd api/
 ./make_pb.sh $apiDir/pb $apiDir/proto
 cd ..

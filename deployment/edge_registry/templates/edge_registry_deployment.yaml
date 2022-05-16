@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: edge-registry
+  namespace: edge-cluster
   labels:
     k8s-app: edge-registry
 spec:
@@ -16,7 +17,7 @@ spec:
     spec:
       containers:
       - name: edge-registry
-        image: edge-registry:v1.0
+        image: registry.sakura.com/edge-registry:v1.0
         command:
           - /usr/local/bin/edge-registry
         imagePullPolicy: IfNotPresent
@@ -31,3 +32,5 @@ spec:
             failureThreshold: 1
       nodeSelector:
               virtual: "false"
+      serviceAccount: edge-registry
+      serviceAccountName: edge-registry

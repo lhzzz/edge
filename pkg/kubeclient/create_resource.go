@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -364,14 +365,49 @@ func AppendPathToIngress(client clientset.Interface, namespace, name string, pat
 		return errors.Errorf("ingress:%s no rules", name)
 	}
 	rule := srcIng.Spec.Rules[0]
+	if rule.HTTP == nil {
+		rule.HTTP = &netv1.HTTPIngressRuleValue{}
+	}
 	for i := 0; i < len(rule.HTTP.Paths); i++ {
 		if rule.HTTP.Paths[i].Path == path.Path {
-			rule.HTTP.Paths[i].Path = path.Path
+			rule.HTTP.Paths[i] = path
 			isExist = true
 		}
 	}
 	if !isExist {
 		rule.HTTP.Paths = append(rule.HTTP.Paths, path)
+	}
+	if _, err := client.NetworkingV1().Ingresses(namespace).Update(context.TODO(), srcIng, metav1.UpdateOptions{}); err != nil {
+		return errors.Wrap(err, "unable to update ingress")
+	}
+	return nil
+}
+
+func RemovePathToIngress(client clientset.Interface, namespace, name string, path string) error {
+	srcIng, err := client.NetworkingV1().Ingresses(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrap(err, "get ingress failed")
+	}
+
+	if len(srcIng.Spec.Rules) == 0 {
+		return errors.Errorf("ingress:%s no rules", name)
+	}
+	for _, r := range srcIng.Spec.Rules {
+		rule := r
+		if rule.HTTP == nil {
+			continue
+		}
+		index := -1
+		for i := 0; i < len(rule.HTTP.Paths); i++ {
+			if rule.HTTP.Paths[i].Path == path {
+				index = i
+			}
+		}
+		if index == -1 {
+			klog.Info("path not exist:", path)
+			continue
+		}
+		rule.HTTP.Paths = append(rule.HTTP.Paths[:index], rule.HTTP.Paths[index+1:]...)
 	}
 	if _, err := client.NetworkingV1().Ingresses(namespace).Update(context.TODO(), srcIng, metav1.UpdateOptions{}); err != nil {
 		return errors.Wrap(err, "unable to update ingress")

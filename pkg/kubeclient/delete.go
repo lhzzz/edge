@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/policy/v1beta1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -39,6 +40,7 @@ func init() {
 	deleteHandlers["PodSecurityPolicy"] = deletePodSecurityPolicy
 	deleteHandlers["ClusterRoleBinding"] = deleteClusterRoleBinding
 	deleteHandlers["MutatingWebhookConfiguration"] = deleteMutatingMutatingWebhookConfigurations
+	deleteHandlers["Namespace"] = deleteNamespace
 }
 
 func deleteConfigMap(client kubernetes.Interface, data []byte) error {
@@ -215,6 +217,18 @@ func deleteJob(client kubernetes.Interface, data []byte) error {
 		return errors.Wrapf(err, "unable to decode %s", reflect.TypeOf(obj).String())
 	}
 	err := DeleteJob(client, obj)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func deleteNamespace(client kubernetes.Interface, data []byte) error {
+	obj := new(v1.Namespace)
+	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), data, obj); err != nil {
+		return errors.Wrapf(err, "unable to decode %s", reflect.TypeOf(obj).String())
+	}
+	err := DeleteNameSpace(client, obj)
 	if err != nil {
 		return err
 	}

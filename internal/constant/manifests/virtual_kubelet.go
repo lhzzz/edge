@@ -15,6 +15,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{.NodeName}}
+  namespace: edge-cluster
   labels:
     k8s-app: {{.NodeName}}
 spec:
@@ -30,14 +31,14 @@ spec:
       containers:
       - name: virtual-kubelet
         image: vk:latest
-        command: 
-			- /home/virtual-kubelet
-		args:
-			- --nodename={{.NodeName}}
-			- --namespace={{.NodeNamespace}}
-			- --provider-config=cci.toml
-			- --disable-taint=true 
-			- --provider=mock
+        command:
+        - /home/virtual-kubelet
+        args:
+        - --nodename={{.NodeName}}
+        - --namespace={{.NodeNamespace}}
+        - --provider-config=cci.toml
+        - --disable-taint=true
+        - --provider=mock
         imagePullPolicy: IfNotPresent
         env:
           - name: APISERVER_CERT_LOCATION
@@ -64,14 +65,15 @@ metadata:
   labels:
     k8s-app: {{.NodeName}}
   name: {{.NodeName}}
+  namespace: edge-cluster
 spec:
   ports:
   - name: kubelet
     port: 10251
     targetPort: 10251
   - name: http
-	port: 80
-	targetPort: 80
+    port: 80
+    targetPort: 80
   selector:
     k8s-app: {{.NodeName}}
 `

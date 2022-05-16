@@ -22,6 +22,7 @@ type edgelet struct {
 
 const (
 	registryUrlFmt = "%s/edge/registry/node"
+	logourUrlFmt   = "%s/edge/registry/node?name=%s"
 )
 
 func NewEdgelet(cloudAddress string) *edgelet {
@@ -69,6 +70,31 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 }
 
 func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetResponse, error) {
+	logrus.Info("Reset Request:", req)
+	url := fmt.Sprintf(logourUrlFmt, e.cloudAddress, req.NodeName)
+	httpReq, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		logrus.Error("make delete request failed,err=", err)
+		return nil, err
+	}
+	httpResp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		logrus.Error("post failed,err=", err)
+		return nil, err
+	}
+	defer httpResp.Body.Close()
 
-	return nil, nil
+	body, _ := ioutil.ReadAll(httpResp.Body)
+	logrus.Info("statusCode : ", httpResp.StatusCode, " respBody:", string(body))
+	resp := pb.ResetResponse{}
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		logrus.Error("json Unmarshal failed,err=", err)
+		return nil, err
+	}
+	if resp.Error != nil {
+		logrus.Error("response error,err=", fmt.Errorf(resp.Error.Msg))
+		return nil, nil
+	}
+	return &resp, nil
 }

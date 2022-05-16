@@ -23,7 +23,7 @@ func CreateEdgeRegistry(stopCh <-chan struct{}) (*EdgeRegistryServer, error) {
 	}, nil
 }
 
-func (es *EdgeRegistryServer) Run() {
+func (es *EdgeRegistryServer) Run(address string) {
 	r := gin.Default()
 	registry := r.Group("/edge/registry")
 	{
@@ -33,7 +33,8 @@ func (es *EdgeRegistryServer) Run() {
 		registry.GET("/ping", healthCheck)
 	}
 
+	go r.Run(address)
+
 	<-es.stopCh
 	logrus.Info("Received a program exit signal")
-	return
 }
