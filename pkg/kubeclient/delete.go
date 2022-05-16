@@ -40,7 +40,7 @@ func init() {
 	deleteHandlers["PodSecurityPolicy"] = deletePodSecurityPolicy
 	deleteHandlers["ClusterRoleBinding"] = deleteClusterRoleBinding
 	deleteHandlers["MutatingWebhookConfiguration"] = deleteMutatingMutatingWebhookConfigurations
-	deleteHandlers["NameSpace"] = deleteNamespace
+	deleteHandlers["Namespace"] = deleteNamespace
 }
 
 func deleteConfigMap(client kubernetes.Interface, data []byte) error {
