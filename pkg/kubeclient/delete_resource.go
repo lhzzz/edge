@@ -10,6 +10,7 @@ import (
 	"k8s.io/api/policy/v1beta1"
 	rbac "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 )
@@ -80,6 +81,26 @@ func DeleteJob(client clientset.Interface, job *batchv1.Job) error {
 
 func DeleteNameSpace(client clientset.Interface, ns *corev1.Namespace) error {
 	return client.CoreV1().Namespaces().Delete(context.TODO(), ns.Name, metav1.DeleteOptions{})
+}
+
+func DeleteNodeWithLabels(client clientset.Interface, nodeName string, labels map[string]string) error {
+	node, err := client.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	isSelector := false
+	for key, srcValue := range labels {
+		if dstVal, ok := node.Labels[key]; ok && dstVal == srcValue {
+			isSelector = true
+		}
+	}
+	if isSelector {
+		return client.CoreV1().Nodes().Delete(context.TODO(), nodeName, metav1.DeleteOptions{})
+	}
+	return nil
 }
 
 func IsJobFinished(j *batchv1.Job) bool {

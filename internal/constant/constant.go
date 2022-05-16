@@ -7,3 +7,7 @@ const (
 
 	VirtualKubeletDeafultPort = 80
 )
+
+var (
+	VirtualKubeletLabel = map[string]string{"type": "virtual-kubelet"}
+)

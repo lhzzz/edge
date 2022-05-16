@@ -114,6 +114,14 @@ func deleteNode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
+
+	if err := kubeclient.DeleteNodeWithLabels(getK8sClient(), nodeName, constant.VirtualKubeletLabel); err != nil {
+		logrus.Error("DeleteNode failed,err=", err)
+		resp.Error = pbErrInternal(err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
+	}
+
 	route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, nodeName)
 	if err := kubeclient.RemovePathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, route); err != nil {
 		logrus.Error("remove path in Ingress failed,err=", err)
