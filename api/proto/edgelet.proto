@@ -25,9 +25,104 @@ message ResetResponse {
     Common.Error error = 1;
 }
 
-service Edgelet {
+message CreatePodRequest {
 
+}
+
+message CreatePodResponse {
+
+}
+
+message UpdatePodRequest {
+
+}
+
+message UpdatePodResponse {
+
+}
+
+message DeletePodRequest {
+
+}
+
+message DeletePodResponse {
+
+}
+
+message GetPodsRequest {
+
+}
+
+message GetPodsRespone {
+
+}
+
+message GetPodStatusRequest {
+
+}
+
+message GetPodStatusResponse {
+
+}
+
+message GetContainerLogsRequest {
+
+}
+
+message GetContainerLogsResponse {
+
+}
+
+message RunInContainerRequest {
+
+}
+
+message RunInContainerResponse {
+
+}
+
+message GetStatsSummaryRequest {
+
+}
+
+message GetStatsSummaryResponse {
+
+}
+
+service Edgelet {
+    //FOR edgectl
+
+    //edge join cloud-cluster
     rpc Join(JoinRequest) returns(JoinResponse);
 
+    //edge leave from cloud-cluster
     rpc Reset(ResetRequest) returns(ResetResponse);
+
+    //FOR cloud-cluster callback
+
+    // // CreatePod accepts a Pod definition
+    // rpc CreatePod(CreatePodRequest) returns(CreatePodResponse);
+
+    // // UpdatePod accepts a Pod definition and updates its reference.
+    // rpc UpdatePod(UpdatePodRequest) returns (UpdatePodResponse);
+
+    // // DeletePod deletes the specified pod
+    // rpc DeletePod(DeletePodRequest) returns (DeletePodResponse);
+
+    // // GetPods returns a list of all pods known to be "running".
+    // rpc GetPods(GetPodsRequest) returns (GetPodsRespone); 
+
+    // // GetPodStatus returns the status of a pod by name that is "running".
+    // // returns nil if a pod by that name is not found
+    // rpc GetPodStatus(GetPodStatusRequest) returns(GetPodStatusResponse);
+
+    // // GetContainerLogs retrieves the logs of a container
+    // rpc GetContainerLogs(GetContainerLogsRequest) returns (GetContainerLogsResponse);
+
+    // // RunInContainer executes a command in a container in the pod, copying data
+    // // between in/out/err and the container's stdin/stdout/stderr.
+    // rpc RunInContainer(RunInContainerRequest) returns (RunInContainerResponse);
+
+    // //GetStatsSummary returns dummy stats for all pods known
+    // rpc GetStatsSummary(GetStatsSummaryRequest) returns (GetStatsSummaryResponse);
 }
