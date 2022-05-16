@@ -19,6 +19,12 @@ import (
 var (
 	cs   *kubernetes.Clientset
 	once sync.Once
+
+	pbErrJsonFmt = &pb.Error{Code: pb.ErrorCode_PARAMETER_FAILED, Msg: "not a json fmt"}
+	pbErrParam   = func(validateErr string) *pb.Error {
+		return &pb.Error{Code: pb.ErrorCode_PARAMETER_FAILED, Msg: validateErr}
+	}
+	pbErrInternal = func(err error) *pb.Error { return &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()} }
 )
 
 func getK8sClient() *kubernetes.Clientset {
@@ -41,10 +47,12 @@ func createNode(c *gin.Context) {
 	req := &pb.JoinRequest{}
 	resp := &pb.JoinResponse{}
 	if err := c.BindJSON(req); err != nil {
+		resp.Error = pbErrJsonFmt
 		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
 	if req.NodeName == "" || req.Token == "" {
+		resp.Error = pbErrParam("NodeName or Token is empty")
 		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
@@ -57,6 +65,7 @@ func createNode(c *gin.Context) {
 	}
 	if err := kubeclient.CreateResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
 		logrus.Error("CreateResourceWithFile failed,err=", err)
+		resp.Error = pbErrInternal(err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
@@ -75,6 +84,7 @@ func createNode(c *gin.Context) {
 	}
 	if err := kubeclient.AppendPathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, path); err != nil {
 		logrus.Error("create Ingress failed,err=", err)
+		resp.Error = pbErrInternal(err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
@@ -88,10 +98,12 @@ func deleteNode(c *gin.Context) {
 	resp := &pb.ResetResponse{}
 
 	if err := c.BindJSON(req); err != nil {
+		resp.Error = pbErrJsonFmt
 		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
 	if req.NodeName == "" {
+		resp.Error = pbErrParam("NodeName is empty")
 		c.JSON(http.StatusBadRequest, resp)
 		return
 	}
@@ -103,12 +115,14 @@ func deleteNode(c *gin.Context) {
 	}
 	if err := kubeclient.DeleteResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
 		logrus.Error("DeleteResourceWithFile failed,err=", err)
+		resp.Error = pbErrInternal(err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 	route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, req.NodeName)
 	if err := kubeclient.RemovePathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, route); err != nil {
 		logrus.Error("remove path in Ingress failed,err=", err)
+		resp.Error = pbErrInternal(err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
