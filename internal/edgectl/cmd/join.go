@@ -88,13 +88,13 @@ func NewJoinCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 				return fmt.Errorf("edgelet address is empty")
 			}
 			if joinOptions.cloudAddress == "" {
-				return fmt.Errorf("Please enter cloudAddress")
+				return fmt.Errorf("please enter cloudAddress")
 			}
 			if joinOptions.nodeName == "" {
-				return fmt.Errorf("Please enter node-name")
+				return fmt.Errorf("please enter node-name")
 			}
 			if joinOptions.token == "" {
-				return fmt.Errorf("Please enter token")
+				return fmt.Errorf("please enter token")
 			}
 			return nil
 		},
@@ -124,7 +124,7 @@ func addJoinFlags(flagSet *pflag.FlagSet, joinOptions *joinOptions) {
 }
 
 func joinRunner(edgeletAddress string, opt *joinOptions) error {
-	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure())
+	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure()) //grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
 		return err
@@ -142,6 +142,6 @@ func joinRunner(edgeletAddress string, opt *joinOptions) error {
 	if resp.Error != nil {
 		return fmt.Errorf(resp.Error.Msg)
 	}
-	fmt.Fprintf(opt.writer, joinWorkerNodeDoneMsg)
+	fmt.Fprint(opt.writer, joinWorkerNodeDoneMsg)
 	return nil
 }

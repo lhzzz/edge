@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: edge-registry
-        image: edge-registry:v1.0
+        image: registry.sakura.com/edge-registry:v1.0
         command:
           - /usr/local/bin/edge-registry
         imagePullPolicy: IfNotPresent
