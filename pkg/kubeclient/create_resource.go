@@ -365,9 +365,12 @@ func AppendPathToIngress(client clientset.Interface, namespace, name string, pat
 		return errors.Errorf("ingress:%s no rules", name)
 	}
 	rule := srcIng.Spec.Rules[0]
+	if rule.HTTP == nil {
+		rule.HTTP = &netv1.HTTPIngressRuleValue{}
+	}
 	for i := 0; i < len(rule.HTTP.Paths); i++ {
 		if rule.HTTP.Paths[i].Path == path.Path {
-			rule.HTTP.Paths[i].Path = path.Path
+			rule.HTTP.Paths[i] = path
 			isExist = true
 		}
 	}
@@ -389,18 +392,23 @@ func RemovePathToIngress(client clientset.Interface, namespace, name string, pat
 	if len(srcIng.Spec.Rules) == 0 {
 		return errors.Errorf("ingress:%s no rules", name)
 	}
-	index := -1
-	rule := srcIng.Spec.Rules[0]
-	for i := 0; i < len(rule.HTTP.Paths); i++ {
-		if rule.HTTP.Paths[i].Path == path {
-			index = i
+	for _, r := range srcIng.Spec.Rules {
+		rule := r
+		if rule.HTTP == nil {
+			continue
 		}
+		index := -1
+		for i := 0; i < len(rule.HTTP.Paths); i++ {
+			if rule.HTTP.Paths[i].Path == path {
+				index = i
+			}
+		}
+		if index == -1 {
+			klog.Info("path not exist:", path)
+			continue
+		}
+		rule.HTTP.Paths = append(rule.HTTP.Paths[:index], rule.HTTP.Paths[index+1:]...)
 	}
-	if index == -1 {
-		klog.Info("path not exist:", path)
-		return nil
-	}
-	rule.HTTP.Paths = append(rule.HTTP.Paths[:index], rule.HTTP.Paths[index+1:]...)
 	if _, err := client.NetworkingV1().Ingresses(namespace).Update(context.TODO(), srcIng, metav1.UpdateOptions{}); err != nil {
 		return errors.Wrap(err, "unable to update ingress")
 	}
