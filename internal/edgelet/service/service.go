@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"edge/api/pb"
+	"edge/internal/edgelet/podmanager"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -18,6 +19,7 @@ type edgelet struct {
 	vkUrl        string
 	mutex        sync.RWMutex
 	notify       chan struct{}
+	pm           podmanager.PodManager
 }
 
 const (
@@ -29,6 +31,7 @@ func NewEdgelet(cloudAddress string) *edgelet {
 	return &edgelet{
 		cloudAddress: cloudAddress,
 		notify:       make(chan struct{}, 1),
+		pm:           podmanager.NewPodManager(),
 	}
 }
 
@@ -97,4 +100,37 @@ func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetRes
 		return nil, nil
 	}
 	return &resp, nil
+}
+
+func (e *edgelet) CreatePod(ctx context.Context, req *pb.CreatePodRequest) (*pb.CreatePodResponse, error) {
+
+	return nil, nil
+}
+
+func (e *edgelet) UpdatePod(ctx context.Context, req *pb.UpdatePodRequest) (*pb.UpdatePodResponse, error) {
+	return nil, nil
+}
+
+func (e *edgelet) DeletePod(ctx context.Context, req *pb.DeletePodRequest) (*pb.DeletePodResponse, error) {
+	return nil, nil
+}
+
+func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetPodsResponse, error) {
+	return nil, nil
+}
+
+func (e *edgelet) GetPodStatus(ctx context.Context, req *pb.GetPodStatusRequest) (*pb.GetPodStatusResponse, error) {
+	return nil, nil
+}
+
+func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
+	return nil
+}
+
+func (e *edgelet) RunInContainer(ctx context.Context, req *pb.RunInContainerRequest) (*pb.RunInContainerResponse, error) {
+	return nil, nil
+}
+
+func (e *edgelet) GetStatsSummary(ctx context.Context, req *pb.GetStatsSummaryRequest) (*pb.GetStatsSummaryResponse, error) {
+	return nil, nil
 }

@@ -53,7 +53,7 @@ message GetPodsRequest {
 
 }
 
-message GetPodsRespone {
+message GetPodsResponse {
 
 }
 
@@ -100,29 +100,29 @@ service Edgelet {
 
     //FOR cloud-cluster callback
 
-    // // CreatePod accepts a Pod definition
-    // rpc CreatePod(CreatePodRequest) returns(CreatePodResponse);
+    // CreatePod accepts a Pod definition
+    rpc CreatePod(CreatePodRequest) returns(CreatePodResponse);
 
-    // // UpdatePod accepts a Pod definition and updates its reference.
-    // rpc UpdatePod(UpdatePodRequest) returns (UpdatePodResponse);
+    // UpdatePod accepts a Pod definition and updates its reference.
+    rpc UpdatePod(UpdatePodRequest) returns (UpdatePodResponse);
 
-    // // DeletePod deletes the specified pod
-    // rpc DeletePod(DeletePodRequest) returns (DeletePodResponse);
+    // DeletePod deletes the specified pod
+    rpc DeletePod(DeletePodRequest) returns (DeletePodResponse);
 
-    // // GetPods returns a list of all pods known to be "running".
-    // rpc GetPods(GetPodsRequest) returns (GetPodsRespone); 
+    // GetPods returns a list of all pods known to be "running".
+    rpc GetPods(GetPodsRequest) returns (GetPodsResponse); 
 
-    // // GetPodStatus returns the status of a pod by name that is "running".
-    // // returns nil if a pod by that name is not found
-    // rpc GetPodStatus(GetPodStatusRequest) returns(GetPodStatusResponse);
+    // GetPodStatus returns the status of a pod by name that is "running".
+    // returns nil if a pod by that name is not found
+    rpc GetPodStatus(GetPodStatusRequest) returns(GetPodStatusResponse);
 
-    // // GetContainerLogs retrieves the logs of a container
-    // rpc GetContainerLogs(GetContainerLogsRequest) returns (GetContainerLogsResponse);
+    // GetContainerLogs retrieves the logs of a container
+    rpc GetContainerLogs(GetContainerLogsRequest) returns (stream GetContainerLogsResponse);
 
-    // // RunInContainer executes a command in a container in the pod, copying data
-    // // between in/out/err and the container's stdin/stdout/stderr.
-    // rpc RunInContainer(RunInContainerRequest) returns (RunInContainerResponse);
+    // RunInContainer executes a command in a container in the pod, copying data
+    // between in/out/err and the container's stdin/stdout/stderr.
+    rpc RunInContainer(RunInContainerRequest) returns (RunInContainerResponse);
 
-    // //GetStatsSummary returns dummy stats for all pods known
-    // rpc GetStatsSummary(GetStatsSummaryRequest) returns (GetStatsSummaryResponse);
+    //GetStatsSummary returns dummy stats for all pods known
+    rpc GetStatsSummary(GetStatsSummaryRequest) returns (GetStatsSummaryResponse);
 }
