@@ -3,12 +3,11 @@ module edge
 go 1.16
 
 require (
+	github.com/docker/compose/v2 v2.6.0
 	github.com/gin-gonic/gin v1.7.7
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/golang/protobuf v1.5.2
-	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/lithammer/dedent v1.1.0
-	github.com/onsi/gomega v1.15.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
@@ -17,19 +16,17 @@ require (
 	github.com/ugorji/go v1.2.7 // indirect
 	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88 // indirect
 	golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6 // indirect
-	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.22.2
-	k8s.io/apimachinery v0.22.2
-	k8s.io/client-go v0.22.2
-	k8s.io/component-base v0.22.2
-	k8s.io/klog/v2 v2.8.0
+	k8s.io/api v0.23.4
+	k8s.io/apimachinery v0.23.4
+	k8s.io/client-go v0.23.4
+	k8s.io/component-base v0.22.5
+	k8s.io/klog/v2 v2.30.0
 	k8s.io/kubernetes v1.19.14
-	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a // indirect
 	sigs.k8s.io/yaml v1.2.0
-	//go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
+//go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
 )
 
 replace (

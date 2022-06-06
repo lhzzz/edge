@@ -24,7 +24,7 @@ type edgelet struct {
 
 const (
 	registryUrlFmt = "%s/edge/registry/node"
-	logourUrlFmt   = "%s/edge/registry/node?name=%s"
+	logoutUrlFmt   = "%s/edge/registry/node?name=%s"
 )
 
 func NewEdgelet(cloudAddress string) *edgelet {
@@ -40,10 +40,9 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 	url := fmt.Sprintf(registryUrlFmt, e.cloudAddress)
 	reqbyte, err := json.Marshal(req)
 	if err != nil {
-		logrus.Error("proto marshal failed,err=", err)
 		return nil, err
 	}
-	resp, err := http.Post(url, "application/x-protobuf", bytes.NewBuffer(reqbyte))
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(reqbyte))
 	if err != nil {
 		logrus.Error("post failed,err=", err)
 		return nil, err
@@ -74,7 +73,7 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 
 func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetResponse, error) {
 	logrus.Info("Reset Request:", req)
-	url := fmt.Sprintf(logourUrlFmt, e.cloudAddress, req.NodeName)
+	url := fmt.Sprintf(logoutUrlFmt, e.cloudAddress, req.NodeName)
 	httpReq, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		logrus.Error("make delete request failed,err=", err)
@@ -103,8 +102,12 @@ func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetRes
 }
 
 func (e *edgelet) CreatePod(ctx context.Context, req *pb.CreatePodRequest) (*pb.CreatePodResponse, error) {
-
-	return nil, nil
+	resp := &pb.CreatePodResponse{}
+	err := e.pm.CreatePod(ctx, req.Pod)
+	if err != nil {
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+	}
+	return resp, nil
 }
 
 func (e *edgelet) UpdatePod(ctx context.Context, req *pb.UpdatePodRequest) (*pb.UpdatePodResponse, error) {
@@ -112,7 +115,12 @@ func (e *edgelet) UpdatePod(ctx context.Context, req *pb.UpdatePodRequest) (*pb.
 }
 
 func (e *edgelet) DeletePod(ctx context.Context, req *pb.DeletePodRequest) (*pb.DeletePodResponse, error) {
-	return nil, nil
+	resp := &pb.DeletePodResponse{}
+	err := e.pm.DeletePod(ctx, req.Pod)
+	if err != nil {
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+	}
+	return resp, nil
 }
 
 func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetPodsResponse, error) {

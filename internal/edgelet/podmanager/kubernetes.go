@@ -1,28 +1,38 @@
 package podmanager
 
+import (
+	"context"
+
+	v1 "k8s.io/api/core/v1"
+)
+
 type k8sPodManager struct {
 }
 
-func (k *k8sPodManager) CreatePod() {
+func newKubernetesManager() *k8sPodManager {
+	return &k8sPodManager{}
+}
+
+func (k *k8sPodManager) CreatePod(ctx context.Context, pod *v1.Pod) error {
+	return nil
+}
+
+func (k *k8sPodManager) UpdatePod(ctx context.Context) {
 
 }
 
-func (k *k8sPodManager) UpdatePod() {
+func (k *k8sPodManager) DeletePod(ctx context.Context) {
 
 }
 
-func (k *k8sPodManager) DeletePod() {
+func (k *k8sPodManager) GetPods(ctx context.Context) {
 
 }
 
-func (k *k8sPodManager) GetPods() {
+func (k *k8sPodManager) GetPodStatus(ctx context.Context) {
 
 }
 
-func (k *k8sPodManager) GetPodStatus() {
-
-}
-
-func (k *k8sPodManager) GetContainerLogs() {
+func (k *k8sPodManager) GetContainerLogs(ctx context.Context) {
 
 }

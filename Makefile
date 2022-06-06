@@ -14,4 +14,4 @@ image:
 	@chmod +x image_build.sh && ./image_build.sh
 
 clean:
-	@rm api/pb/* bin/*
+	@rm -rf api/pb/* bin/*

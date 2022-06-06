@@ -1,5 +1,6 @@
 syntax = "proto3";
 import public "common.proto";
+import public "pod.proto";
 
 package pb;
 option go_package=".;pb";
@@ -26,35 +27,37 @@ message ResetResponse {
 }
 
 message CreatePodRequest {
-
+    k8s.io.api.core.v1.Pod pod = 1;
 }
 
 message CreatePodResponse {
-
+    Common.Error error = 1;
 }
 
 message UpdatePodRequest {
-
+    k8s.io.api.core.v1.Pod pod = 1;
 }
 
 message UpdatePodResponse {
-
+    Common.Error error = 1;
 }
 
 message DeletePodRequest {
-
+    k8s.io.api.core.v1.Pod pod = 1;
 }
 
 message DeletePodResponse {
-
+    Common.Error error = 1;
 }
 
 message GetPodsRequest {
-
+    string namespace = 1;
+    string name = 2;
 }
 
 message GetPodsResponse {
-
+    Common.Error error = 1;
+    repeated k8s.io.api.core.v1.Pod pods = 2;
 }
 
 message GetPodStatusRequest {

@@ -1,19 +1,23 @@
 package podmanager
 
-import "os"
+import (
+	"context"
+
+	v1 "k8s.io/api/core/v1"
+)
 
 type PodManager interface {
-	CreatePod()
-	UpdatePod()
-	DeletePod()
-	GetPods()
-	GetPodStatus()
-	GetContainerLogs()
+	CreatePod(ctx context.Context, pod *v1.Pod) error
+	UpdatePod(ctx context.Context)
+	DeletePod(ctx context.Context, pod *v1.Pod) error
+	GetPods(ctx context.Context)
+	GetPodStatus(ctx context.Context)
+	GetContainerLogs(ctx context.Context)
 }
 
 func NewPodManager() PodManager {
-	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
-		return &k8sPodManager{}
-	}
-	return &dcpPodManager{}
+	// if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+	// 	return newKubernetesManager()
+	// }
+	return newDockerComposeManager()
 }
