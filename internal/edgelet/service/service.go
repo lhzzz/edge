@@ -123,6 +123,10 @@ func (e *edgelet) DeletePod(ctx context.Context, req *pb.DeletePodRequest) (*pb.
 	return resp, nil
 }
 
+func (e *edgelet) GetPod(ctx context.Context, req *pb.GetPodRequest) (*pb.GetPodResponse, error) {
+	return nil, nil
+}
+
 func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetPodsResponse, error) {
 	return nil, nil
 }

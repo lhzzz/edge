@@ -50,9 +50,17 @@ message DeletePodResponse {
     Common.Error error = 1;
 }
 
-message GetPodsRequest {
+message GetPodRequest {
     string namespace = 1;
-    string name = 2;
+    string name = 2; 
+}
+
+message GetPodResponse {
+    k8s.io.api.core.v1.Pod pod = 2;
+}
+
+message GetPodsRequest {
+    
 }
 
 message GetPodsResponse {
@@ -61,19 +69,24 @@ message GetPodsResponse {
 }
 
 message GetPodStatusRequest {
-
+    string namespace = 1;
+    string name = 2;
 }
 
 message GetPodStatusResponse {
-
+    Common.Error error = 1;
+    k8s.io.api.core.v1.PodStatus pod_status = 2;
 }
 
 message GetContainerLogsRequest {
-
+    string namespace = 1;
+    string name = 2;
+    string container_name = 3;
 }
 
 message GetContainerLogsResponse {
-
+    Common.Error error = 1;
+    bytes log = 2;
 }
 
 message RunInContainerRequest {
@@ -89,7 +102,128 @@ message GetStatsSummaryRequest {
 }
 
 message GetStatsSummaryResponse {
+    Common.Error error = 1;
+    NodeStats node_status = 2;
+    repeated k8s.io.api.core.v1.PodStatus pod_statuses = 3;
+}
 
+message Time {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}
+
+message ProcessStats {
+    uint64 process_count = 1;
+}
+
+message RuntimeStats {
+    FsStats image_fs = 1;
+}
+
+message ContainerStats {
+	string name = 1;
+    Time time = 2;
+    CPUStats cpu = 3;
+    MemoryStats memory = 4;
+    repeated AcceleratorStats accelerators = 5;
+    FsStats rootfs = 6;
+    FsStats logs = 7;
+}
+
+message RlimitStats {
+    Time time = 1;
+    int64 max_pid = 2;
+    int64 num_of_running_process = 3;
+}
+
+message PodReference {
+    string name = 1;
+    string namespace = 2;
+    string uid = 3;
+}
+
+message InterfaceStats {
+    string name = 1;
+    uint64 rx_bytes = 2;
+    uint64 rx_errors = 3;
+    uint64 tx_bytes = 4;
+    uint64 tx_errors = 5;
+}
+
+message NetworkStats {
+    Time time = 1;
+    InterfaceStats interface_stats = 2;
+    repeated InterfaceStats interfaces = 3;
+}
+
+message CPUStats {
+    Time time = 1;
+    uint64 usage_nano_cores = 2;
+    uint64 usage_core_nano_seconds = 3;
+}
+
+message MemoryStats {
+    Time time = 1;
+    uint64 available_bytes = 2;
+    uint64 usage_bytes = 3;
+    uint64 working_set_bytes = 4;
+    uint64 RSS_bytes = 5;
+    uint64 page_faults = 6;
+    uint64 major_page_faults = 7;
+}
+
+message AcceleratorStats {
+    string make = 1;
+    string model = 2;
+    string id = 3;
+    uint64 memory_total = 4;
+    uint64 memory_used = 5;
+    uint64 duty_cycle = 6;
+}
+
+message PVCReference {
+    string name = 1;
+    string namespace = 2;
+}
+
+message VolumeStats {
+    FsStats fs_stats = 1;
+    string name = 2;
+    PVCReference PVC_ref = 3;
+}
+
+message FsStats {
+    Time time = 1;
+    uint64 available_bytes = 2;
+    uint64 capacity_bytes = 3;
+    uint64 used_bytes = 4;
+    uint64 inodes_free = 5;
+    uint64 inodes = 6;
+    uint64 inodes_used = 7;
+}
+
+message NodeStats {
+    string NodeName = 1;
+    repeated ContainerStats system_containers = 2;
+    Time start_time = 3;
+    CPUStats cpu = 4;
+    MemoryStats memory = 5;
+    NetworkStats network = 6;
+    FsStats fs = 7;
+    RuntimeStats runtime = 8;
+    RlimitStats rlimit = 9;
+}
+
+message PodStats {
+    PodReference pod_ref = 1;
+    Time start_time = 2;
+    repeated ContainerStats containers = 3;
+    CPUStats cpu = 4;
+    MemoryStats memory = 5;
+    NetworkStats network = 6;
+    repeated VolumeStats volume_stats = 7;
+    FsStats ephemeral_storage = 8;
+    ProcessStats process_stats = 9;
 }
 
 service Edgelet {
@@ -111,6 +245,9 @@ service Edgelet {
 
     // DeletePod deletes the specified pod
     rpc DeletePod(DeletePodRequest) returns (DeletePodResponse);
+
+     // GetPods returns a list of all pods known to be "running".
+    rpc GetPod(GetPodRequest) returns (GetPodResponse); 
 
     // GetPods returns a list of all pods known to be "running".
     rpc GetPods(GetPodsRequest) returns (GetPodsResponse); 
