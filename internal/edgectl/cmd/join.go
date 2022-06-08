@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"edge/api/pb"
+	"edge/api/edge-proto/pb"
 	"fmt"
 	"io"
 

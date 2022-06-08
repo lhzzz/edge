@@ -1,7 +1,7 @@
 package edgelet
 
 import (
-	"edge/api/pb"
+	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/service"
 	"edge/pkg/common"
 	"net"

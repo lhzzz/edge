@@ -5,7 +5,7 @@ PROJECT_NAME := "edge"
 all: build
 
 gen: 
-	@chmod +x api/* && ./api/make_pb.sh api/pb api/proto
+	@chmod +x api/edge-proto/* && ./api/edge-proto/make_pb.sh api/edge-proto/pb api/edge-proto/proto
 
 build:
 	@chmod +x build.sh && ./build.sh
@@ -14,4 +14,4 @@ image:
 	@chmod +x image_build.sh && ./image_build.sh
 
 clean:
-	@rm -rf api/pb/* bin/*
+	@rm -rf api/edge-proto/pb/* bin/*

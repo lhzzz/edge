@@ -1,7 +1,7 @@
 package server
 
 import (
-	"edge/api/pb"
+	"edge/api/edge-proto/pb"
 	"edge/internal/constant"
 	"edge/internal/constant/manifests"
 	"fmt"

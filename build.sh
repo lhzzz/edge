@@ -1,10 +1,10 @@
 #! /bin/bash
 
-apiDir=$PWD/api
-chmod +x $apiDir/*
-cd api/
-./make_pb.sh $apiDir/pb $apiDir/proto
-cd ..
+APIDIR=$PWD/api/edge-proto
+chmod +x $APIDIR/*
+cd api/edge-proto
+./make_pb.sh $APIDIR/pb $APIDIR/proto
+cd -
 
 go build -o bin/edgelet cmd/edgelet/main.go &
 go build -o bin/edgectl cmd/edgectl/main.go &

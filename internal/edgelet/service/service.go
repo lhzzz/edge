@@ -3,7 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
-	"edge/api/pb"
+	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/podmanager"
 	"encoding/json"
 	"fmt"
