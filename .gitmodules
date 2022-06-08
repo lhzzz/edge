@@ -1,0 +1,3 @@
+[submodule "api/edge-proto"]
+	path = api/edge-proto
+	url = git@github.com:lhzzz/edge-proto.git
