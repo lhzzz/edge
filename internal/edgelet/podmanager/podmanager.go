@@ -8,7 +8,7 @@ import (
 
 type PodManager interface {
 	CreatePod(ctx context.Context, pod *v1.Pod) error
-	UpdatePod(ctx context.Context)
+	UpdatePod(ctx context.Context, pod *v1.Pod) error
 	DeletePod(ctx context.Context, pod *v1.Pod) error
 	GetPods(ctx context.Context)
 	GetPodStatus(ctx context.Context)
