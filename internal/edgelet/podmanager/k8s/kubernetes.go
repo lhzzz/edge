@@ -1,4 +1,4 @@
-package podmanager
+package k8s
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 type k8sPodManager struct {
 }
 
-func newKubernetesManager() *k8sPodManager {
+func NewPodManager(opts ...ConfigOption) *k8sPodManager {
 	return &k8sPodManager{}
 }
 

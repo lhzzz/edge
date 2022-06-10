@@ -58,7 +58,7 @@ jobs:
     - name: Build
       run: |
         export PATH=$PATH:$(go env GOPATH)/bin
-        chmod +x api/*
-        cp api/bin/* $(go env GOPATH)/bin
+        chmod +x api/edge-proto/*
+        cp api/edge-proto/bin/* $(go env GOPATH)/bin
         chmod +x $(go env GOPATH)/bin/*
         make

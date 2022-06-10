@@ -3,6 +3,7 @@ package podmanager
 import (
 	"context"
 
+	"github.com/micro/go-micro/config"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -10,14 +11,15 @@ type PodManager interface {
 	CreatePod(ctx context.Context, pod *v1.Pod) error
 	UpdatePod(ctx context.Context, pod *v1.Pod) error
 	DeletePod(ctx context.Context, pod *v1.Pod) error
-	GetPods(ctx context.Context)
-	GetPodStatus(ctx context.Context)
+	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
+	GetPods(ctx context.Context) ([]*v1.Pod, error)
+	GetPodStatus(ctx context.Context, namespace, name string) (*v1.PodStatus, error)
 	GetContainerLogs(ctx context.Context)
 }
 
-func NewPodManager() PodManager {
+func NewPodManager(opts ...config.Option) PodManager {
 	// if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
-	// 	return newKubernetesManager()
+	// 	return k8s.NewPodManager(opts...)
 	// }
-	return newDockerComposeManager()
+	return dockercompose.NewPodManager(opts...)
 }
