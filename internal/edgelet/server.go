@@ -15,7 +15,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-func Run(cloudAddress string, runAddress string) {
+func Run(cloudAddress, runAddress string) {
 
 	common.InitLogger()
 

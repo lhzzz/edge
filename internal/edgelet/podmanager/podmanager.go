@@ -2,8 +2,12 @@ package podmanager
 
 import (
 	"context"
+	"os"
 
-	"github.com/micro/go-micro/config"
+	"edge/internal/edgelet/podmanager/config"
+	"edge/internal/edgelet/podmanager/dockercompose"
+	"edge/internal/edgelet/podmanager/k8s"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -17,9 +21,10 @@ type PodManager interface {
 	GetContainerLogs(ctx context.Context)
 }
 
-func NewPodManager(opts ...config.Option) PodManager {
-	// if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
-	// 	return k8s.NewPodManager(opts...)
-	// }
+func New(opts ...config.Option) PodManager {
+	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+		return k8s.NewPodManager(opts...)
+	}
+	opts = append(opts, config.WithProjectName("compose"))
 	return dockercompose.NewPodManager(opts...)
 }

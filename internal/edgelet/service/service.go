@@ -31,7 +31,7 @@ func NewEdgelet(cloudAddress string) *edgelet {
 	return &edgelet{
 		cloudAddress: cloudAddress,
 		notify:       make(chan struct{}, 1),
-		pm:           podmanager.NewPodManager(),
+		pm:           podmanager.New(),
 	}
 }
 

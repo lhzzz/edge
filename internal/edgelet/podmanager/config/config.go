@@ -1,7 +1,7 @@
 package config
 
 type Config struct {
-	Project string
+	Project string //docker-compose need Project
 }
 
 type Option interface {
