@@ -6,10 +6,12 @@ package dockercompose
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	pmconf "edge/internal/edgelet/podmanager/config"
 
@@ -28,12 +30,29 @@ import (
 
 const (
 	k8sNamespaceLabel = "k8s-namespace"
+	k8sPodInfoLabel   = "k8s-podinfo"
+	k8sPodNameLabel   = "k8s-podname"
 	always            = "always"
+)
+
+type containerState string
+
+const (
+	pausedState     containerState = "paused"
+	restartingState containerState = "restarting"
+	removingState   containerState = "removing"
+	runningState    containerState = "running"
+	deadState       containerState = "dead"
+	createdState    containerState = "created"
+	exitedState     containerState = "exited"
 )
 
 var (
 	//errMissingLabel is returned when pod missing a service name
 	errMissingMeta = errors.New("missing metaName")
+
+	//errNotFound is returned when pod is not found in docker-compose
+	errNotFound = errors.New("not found")
 
 	//health service dependency
 	serviceHealthDependency = types.ServiceDependency{Condition: "service_healthy"}
@@ -58,7 +77,7 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 		o.Apply(&conf)
 	}
 	if conf.Project == "" {
-		panic("missing project name")
+		panic("missing project name: docker-compose init must specify a project")
 	}
 	dockerCli, err := command.NewDockerCli()
 	if err != nil {
@@ -98,13 +117,25 @@ func (d *dcpPodManager) DeletePod(ctx context.Context, pod *v1.Pod) error {
 	})
 }
 
-func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podname string) (*v1.Pod, error) {
-
-	return nil, nil
+func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (*v1.Pod, error) {
+	f := getDefaultFilters(d.project)
+	f = append(f, namespaceFilter(namespace))
+	f = append(f, podnameFilter(podName))
+	containers, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
+		Filters: filters.NewArgs(f...),
+		All:     true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(containers) == 0 {
+		return nil, errNotFound
+	}
+	return containerToK8sPod(containers...), nil
 }
 
 func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
-	cs := make(map[string]moby.Container)
+	podContainers := make(map[string][]moby.Container)
 	f := getDefaultFilters(d.project)
 	//用docker-compose的api数据被转换，有效信息太少
 	containers, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
@@ -114,27 +145,43 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	//duplicate
 	for _, c := range containers {
 		serivceName := c.Labels[api.ServiceLabel]
 		podName, _ := parseContainerServiceName(serivceName)
-		if _, ok := cs[podName]; !ok {
-			cs[podName] = c
-		}
+		podContainers[podName] = append(podContainers[podName], c)
 	}
-
-	ret := make([]*v1.Pod, len(cs))
+	ret := make([]*v1.Pod, len(podContainers))
 	index := 0
-	for _, c := range cs {
-		ret[index] = containerToK8sPod(c)
+	for _, cs := range podContainers {
+		ret[index] = containerToK8sPod(cs...)
 		index++
 	}
 	return ret, nil
 }
 
+//获取pod的status
 func (d *dcpPodManager) GetPodStatus(ctx context.Context, namespace, podName string) (*v1.PodStatus, error) {
-	return nil, nil
+	f := getDefaultFilters(d.project)
+	f = append(f, namespaceFilter(namespace))
+	f = append(f, podnameFilter(podName))
+	containers, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
+		Filters: filters.NewArgs(f...),
+		All:     true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(containers) == 0 {
+		return nil, errNotFound
+	}
+	pod := containerToK8sPod(containers[0])
+	for _, c := range containers {
+		if c.State != string(runningState) {
+			pod.Status.Phase = v1.PodFailed
+		}
+	}
+	return &pod.Status, nil
 }
 
 func (d *dcpPodManager) GetContainerLogs(ctx context.Context) {
@@ -218,15 +265,15 @@ func parseContainerServiceName(serviceName string) (podName, containerName strin
 	return
 }
 
-func newDefaultDockerComposeLabels(objectMeta metav1.ObjectMeta, project, service string) types.Labels {
+func newDefaultDockerComposeLabels(pod *v1.Pod, project, service string) types.Labels {
 	labels := types.Labels{}
 	labels.Add(api.ProjectLabel, project)
 	labels.Add(api.ServiceLabel, service)
 	labels.Add(api.OneoffLabel, "False")
-	labels.Add(k8sNamespaceLabel, objectMeta.Namespace)
-	for k, v := range objectMeta.Labels {
-		labels.Add(k, v)
-	}
+	labels.Add(k8sNamespaceLabel, pod.ObjectMeta.Namespace)
+	labels.Add(k8sPodNameLabel, pod.ObjectMeta.Name)
+	jbyte, _ := json.Marshal(pod)
+	labels.Add(k8sPodInfoLabel, string(jbyte))
 	return labels
 }
 
@@ -237,7 +284,7 @@ func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project str
 	svrconf.Name = makeContainerServiceName(podName, container.Name)
 	svrconf.Command = append(container.Command, container.Args...)
 	svrconf.Image = container.Image
-	svrconf.Labels = newDefaultDockerComposeLabels(pod.ObjectMeta, project, svrconf.Name)
+	svrconf.Labels = newDefaultDockerComposeLabels(pod, project, svrconf.Name)
 	svrconf.CustomLabels = types.Labels{}
 	svrconf.Environment = types.MappingWithEquals{}
 	for _, e := range container.Env {
@@ -286,6 +333,14 @@ func serviceFilter(serviceName string) filters.KeyValuePair {
 	return filters.Arg("label", fmt.Sprintf("%s=%s", api.ServiceLabel, serviceName))
 }
 
+func namespaceFilter(namespace string) filters.KeyValuePair {
+	return filters.Arg("label", fmt.Sprintf("%s=%s", k8sNamespaceLabel, namespace))
+}
+
+func podnameFilter(podname string) filters.KeyValuePair {
+	return filters.Arg("label", fmt.Sprintf("%s=%s", k8sPodNameLabel, podname))
+}
+
 func getDefaultFilters(projectName string, selectedServices ...string) []filters.KeyValuePair {
 	f := []filters.KeyValuePair{projectFilter(projectName)}
 	if len(selectedServices) == 1 {
@@ -294,41 +349,63 @@ func getDefaultFilters(projectName string, selectedServices ...string) []filters
 	return f
 }
 
+//重点
 func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 	if len(containers) == 0 {
 		return nil
 	}
-	pod := &v1.Pod{}
-	c := containers[0]
-	serivceName := c.Labels[api.ServiceLabel]
-	podName, _ := parseContainerServiceName(serivceName)
-	pod.ObjectMeta = metav1.ObjectMeta{
-		Name:      podName,
-		Namespace: c.Labels[k8sNamespaceLabel],
-		Labels:    dropFilterLabel(c.Labels),
+	pod := v1.Pod{}
+	podinfo := containers[0].Labels[k8sPodInfoLabel]
+	err := json.Unmarshal([]byte(podinfo), &pod)
+	if err != nil {
+		logrus.Error("json unmarshal container pod label failed,err=", err)
+		return nil
 	}
-	return nil
+
+	dockerContainers := make(map[string]moby.Container)
+	for _, c := range containers {
+		if c.State == string(runningState) {
+			pod.Status.Phase = v1.PodFailed
+		}
+		serviceName := c.Labels[api.ServiceLabel]
+		_, podContainerName := parseContainerServiceName(serviceName)
+		dockerContainers[podContainerName] = c
+	}
+	//spec container
+	for _, c := range pod.Spec.Containers {
+		mobyContainer := dockerContainers[c.Name]
+		containerStatus := v1.ContainerStatus{
+			Name:  c.Name,
+			Image: c.Image,
+			State: containerStateToK8sContainerState(mobyContainer),
+			Ready: true,
+		}
+		pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+	}
+	return &pod
 }
 
-func dropFilterLabel(labels types.Labels) types.Labels {
-	copylabel := types.Labels{}
-	for k, v := range labels {
-		copylabel[k] = v
+func containerStateToK8sContainerState(container moby.Container) v1.ContainerState {
+	ret := v1.ContainerState{}
+	cs := containerState(container.State)
+	now := metav1.NewTime(time.Now())
+	if cs == runningState || cs == createdState {
+		ret.Running = &v1.ContainerStateRunning{
+			StartedAt: now,
+		}
+		return ret
 	}
-	delete(copylabel, k8sNamespaceLabel)
-	delete(copylabel, api.ServiceLabel)
-	delete(copylabel, api.ProjectLabel)
-	delete(copylabel, api.ConfigHashLabel)
-	delete(copylabel, api.ContainerNumberLabel)
-	delete(copylabel, api.VolumeLabel)
-	delete(copylabel, api.NetworkLabel)
-	delete(copylabel, api.WorkingDirLabel)
-	delete(copylabel, api.ConfigFilesLabel)
-	delete(copylabel, api.EnvironmentFileLabel)
-	delete(copylabel, api.OneoffLabel)
-	delete(copylabel, api.SlugLabel)
-	delete(copylabel, api.ImageDigestLabel)
-	delete(copylabel, api.DependenciesLabel)
-	delete(copylabel, api.VersionLabel)
-	return copylabel
+	if cs == removingState || cs == deadState || cs == exitedState {
+		ret.Terminated = &v1.ContainerStateTerminated{
+			Message: container.Status,
+		}
+		return ret
+	}
+	if cs == pausedState {
+		ret.Waiting = &v1.ContainerStateWaiting{
+			Message: container.Status,
+		}
+		return ret
+	}
+	return ret
 }

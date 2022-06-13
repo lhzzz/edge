@@ -2,6 +2,7 @@ package dockercompose
 
 import (
 	"context"
+	"edge/internal/edgelet/podmanager/config"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -85,7 +86,7 @@ func Test_createAndRun(t *testing.T) {
 }
 
 func Test_ps(t *testing.T) {
-	dcp := NewPodManager(WithProjectName("compose"))
+	dcp := NewPodManager(config.WithProjectName("compose"))
 	sum, err := dcp.composeApi.Ps(context.TODO(), "compose", api.PsOptions{All: true})
 	if err != nil {
 		t.Error(err)
@@ -243,7 +244,7 @@ var pod = &v1.Pod{
 }
 
 func Test_createPod(t *testing.T) {
-	dcp := NewPodManager(WithProjectName("compose"))
+	dcp := NewPodManager(config.WithProjectName("compose"))
 
 	err := dcp.CreatePod(context.Background(), pod)
 	if err != nil {
@@ -261,10 +262,8 @@ func Test_deletePod(t *testing.T) {
 }
 
 func Test_listPod(t *testing.T) {
-	// dir := NewPodManager()
-	// statck, err := dir.dockerCli.Client().
-	// if err != nil {
-	// 	t.Error(err)
-	// 	return
-	// }
+	dir := NewPodManager(config.WithProjectName("compose"))
+	pods, err := dir.GetPodStatus(context.Background(), "default", "nginx-deployment-2xclp")
+
+	t.Log(pods, err)
 }
