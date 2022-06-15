@@ -12,8 +12,8 @@ import (
 )
 
 type PodManager interface {
-	CreatePod(ctx context.Context, pod *v1.Pod) error
-	UpdatePod(ctx context.Context, pod *v1.Pod) error
+	CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
+	UpdatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error)
 	DeletePod(ctx context.Context, pod *v1.Pod) error
 	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
 	GetPods(ctx context.Context) ([]*v1.Pod, error)

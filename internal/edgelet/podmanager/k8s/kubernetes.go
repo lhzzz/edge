@@ -14,12 +14,12 @@ func NewPodManager(opts ...config.Option) *k8sPodManager {
 	return &k8sPodManager{}
 }
 
-func (k *k8sPodManager) CreatePod(ctx context.Context, pod *v1.Pod) error {
-	return nil
+func (k *k8sPodManager) CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
+	return nil, nil
 }
 
-func (k *k8sPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) error {
-	return nil
+func (k *k8sPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
+	return nil, nil
 }
 
 func (k *k8sPodManager) DeletePod(ctx context.Context, pod *v1.Pod) error {

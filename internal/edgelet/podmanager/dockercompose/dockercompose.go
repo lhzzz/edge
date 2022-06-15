@@ -95,11 +95,11 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 }
 
 //将k8s的pod转换为docker compose中的
-func (d *dcpPodManager) CreatePod(ctx context.Context, pod *v1.Pod) error {
+func (d *dcpPodManager) CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	return d.createOrUpdate(ctx, pod)
 }
 
-func (d *dcpPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) error {
+func (d *dcpPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	return d.createOrUpdate(ctx, pod)
 }
 
@@ -175,12 +175,7 @@ func (d *dcpPodManager) GetPodStatus(ctx context.Context, namespace, podName str
 	if len(containers) == 0 {
 		return nil, errNotFound
 	}
-	pod := containerToK8sPod(containers[0])
-	for _, c := range containers {
-		if c.State != string(runningState) {
-			pod.Status.Phase = v1.PodFailed
-		}
-	}
+	pod := containerToK8sPod(containers...)
 	return &pod.Status, nil
 }
 
@@ -188,7 +183,7 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context) {
 
 }
 
-func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) error {
+func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	project := d.newDefaultDockerComposeProject()
 	project.Services = k8sContainersToServices(pod, d.project)
 	project.Volumes = k8sVolumeToVolume(pod.Spec.Volumes)
@@ -196,7 +191,16 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) error {
 		Create: api.CreateOptions{Inherit: true, Recreate: "force"},
 		Start:  api.StartOptions{Project: &project},
 	})
-	return err
+	if err != nil {
+		logrus.Info("createOrUpdate Pod failed,err=", err)
+		return pod, err
+	}
+	pod, err = d.GetPod(ctx, pod.Namespace, pod.Name)
+	if err != nil {
+		logrus.Info("GetPod in createOrUpdate failed,err=", err)
+		return pod, err
+	}
+	return pod, nil
 }
 
 func (d *dcpPodManager) newDefaultDockerComposeProject() types.Project {
@@ -293,8 +297,8 @@ func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project str
 	}
 	//TODO:健康检测的转换处理
 	svrconf.HealthCheck = &types.HealthCheckConfig{}
-	svrconf.PullPolicy = "IfNotPresent"
-	svrconf.Restart = "on-failure:3" //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
+	svrconf.PullPolicy = types.PullPolicyIfNotPresent
+	svrconf.Restart = types.RestartPolicyOnFailure + ":3" //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = []types.ServicePortConfig{}
 	//TODO:port转换有问题
@@ -361,6 +365,7 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 		logrus.Error("json unmarshal container pod label failed,err=", err)
 		return nil
 	}
+	pod.Status.Reset()
 	pod.Status.Phase = v1.PodRunning
 	pod.Status.Reason = ""
 	pod.Status.Conditions = []v1.PodCondition{
@@ -380,8 +385,9 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 
 	dockerContainers := make(map[string]moby.Container)
 	for _, c := range containers {
+		logrus.Infof("podName:%v container:%v state:%v status:%v", pod.Name, c.Names, c.State, c.Status)
 		if c.State != string(runningState) {
-			pod.Status.Phase = v1.PodFailed
+			pod.Status.Phase = v1.PodUnknown
 			pod.Status.Reason = c.Status
 		}
 		serviceName := c.Labels[api.ServiceLabel]
@@ -400,7 +406,7 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 		}
 		pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
 	}
-	logrus.Infof("podName:%v status:%v", pod.Name, pod.Status)
+	logrus.Infof("podname:%v status:%v", pod.Name, pod.Status.Phase)
 	return &pod
 }
 

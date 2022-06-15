@@ -102,24 +102,28 @@ func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetRes
 }
 
 func (e *edgelet) CreatePod(ctx context.Context, req *pb.CreatePodRequest) (*pb.CreatePodResponse, error) {
-	logrus.Info("CreatePod podName:", req.Pod.ObjectMeta.Name)
+	log := logrus.WithField("pod", req.Pod.Name)
 	resp := &pb.CreatePodResponse{}
-	err := e.pm.CreatePod(ctx, req.Pod)
+	pod, err := e.pm.CreatePod(ctx, req.Pod)
 	if err != nil {
 		logrus.Error("CreatePod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
+	resp.Pod = pod
+	log.Info("CreatePod phase:", resp.Pod.Status.Phase, " reason:", resp.Pod.Status.Reason)
 	return resp, nil
 }
 
 func (e *edgelet) UpdatePod(ctx context.Context, req *pb.UpdatePodRequest) (*pb.UpdatePodResponse, error) {
-	logrus.Info("UpdatePod podName:", req.Pod.ObjectMeta.Name)
+	log := logrus.WithField("pod", req.Pod.Name)
 	resp := &pb.UpdatePodResponse{}
-	err := e.pm.UpdatePod(ctx, req.Pod)
+	pod, err := e.pm.UpdatePod(ctx, req.Pod)
 	if err != nil {
 		logrus.Error("UpdatePod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
+	resp.Pod = pod
+	log.Info("UpdatePod phase:", resp.Pod.Status.Phase, " reason:", resp.Pod.Status.Reason)
 	return resp, nil
 }
 
@@ -136,7 +140,7 @@ func (e *edgelet) DeletePod(ctx context.Context, req *pb.DeletePodRequest) (*pb.
 
 func (e *edgelet) GetPod(ctx context.Context, req *pb.GetPodRequest) (*pb.GetPodResponse, error) {
 	resp := &pb.GetPodResponse{}
-	logrus.Info("GetPod :", req)
+	logrus.Info("GetPod ", req)
 	pod, err := e.pm.GetPod(ctx, req.Namespace, req.Name)
 	if err != nil {
 		logrus.Error("GetPod failed, err=", err)
