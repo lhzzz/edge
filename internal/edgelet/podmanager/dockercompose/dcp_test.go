@@ -246,7 +246,7 @@ var pod = &v1.Pod{
 func Test_createPod(t *testing.T) {
 	dcp := NewPodManager(config.WithProjectName("compose"))
 
-	err := dcp.CreatePod(context.Background(), pod)
+	_, err := dcp.CreatePod(context.Background(), pod)
 	if err != nil {
 		t.Error(err)
 	}

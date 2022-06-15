@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pmconf "edge/internal/edgelet/podmanager/config"
+	"edge/pkg/errdefs"
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/command"
@@ -50,9 +51,6 @@ const (
 var (
 	//errMissingLabel is returned when pod missing a service name
 	errMissingMeta = errors.New("missing metaName")
-
-	//errNotFound is returned when pod is not found in docker-compose
-	errNotFound = errors.New("not found")
 
 	//health service dependency
 	serviceHealthDependency = types.ServiceDependency{Condition: "service_healthy"}
@@ -129,7 +127,7 @@ func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (
 		return nil, err
 	}
 	if len(containers) == 0 {
-		return nil, errNotFound
+		return nil, errdefs.NotFoundf("%s/%s not found", namespace, podName)
 	}
 	return containerToK8sPod(containers...), nil
 }
@@ -173,7 +171,7 @@ func (d *dcpPodManager) GetPodStatus(ctx context.Context, namespace, podName str
 		return nil, err
 	}
 	if len(containers) == 0 {
-		return nil, errNotFound
+		return nil, errdefs.NotFoundf("%s/%s not found", namespace, podName)
 	}
 	pod := containerToK8sPod(containers...)
 	return &pod.Status, nil

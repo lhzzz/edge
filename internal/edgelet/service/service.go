@@ -5,6 +5,7 @@ import (
 	"context"
 	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/podmanager"
+	"edge/pkg/errdefs"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -145,6 +146,9 @@ func (e *edgelet) GetPod(ctx context.Context, req *pb.GetPodRequest) (*pb.GetPod
 	if err != nil {
 		logrus.Error("GetPod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		if errdefs.IsNotFound(err) {
+			resp.Error.Code = pb.ErrorCode_NO_RESULT
+		}
 		return resp, nil
 	}
 	resp.Pod = pod
@@ -171,6 +175,9 @@ func (e *edgelet) GetPodStatus(ctx context.Context, req *pb.GetPodStatusRequest)
 	if err != nil {
 		logrus.Error("GetPodStatus failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		if errdefs.IsNotFound(err) {
+			resp.Error.Code = pb.ErrorCode_NO_RESULT
+		}
 		return resp, nil
 	}
 	resp.PodStatus = status
