@@ -293,8 +293,8 @@ func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project str
 	}
 	//TODO:健康检测的转换处理
 	svrconf.HealthCheck = &types.HealthCheckConfig{}
-	svrconf.PullPolicy = "always"
-	svrconf.Restart = "always"
+	svrconf.PullPolicy = "IfNotPresent"
+	svrconf.Restart = "on-failure:3" //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = []types.ServicePortConfig{}
 	//TODO:port转换有问题
@@ -308,7 +308,7 @@ func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project str
 	}
 	//TODO:volumn 的转换处理， configMap/secrets
 	svrconf.Volumes = []types.ServiceVolumeConfig{}
-	logrus.Info(svrconf)
+	//logrus.Info(svrconf)
 	return svrconf
 }
 
@@ -361,11 +361,28 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 		logrus.Error("json unmarshal container pod label failed,err=", err)
 		return nil
 	}
+	pod.Status.Phase = v1.PodRunning
+	pod.Status.Reason = ""
+	pod.Status.Conditions = []v1.PodCondition{
+		{
+			Type:   v1.PodInitialized,
+			Status: v1.ConditionTrue,
+		},
+		{
+			Type:   v1.PodReady,
+			Status: v1.ConditionTrue,
+		},
+		{
+			Type:   v1.PodScheduled,
+			Status: v1.ConditionTrue,
+		},
+	}
 
 	dockerContainers := make(map[string]moby.Container)
 	for _, c := range containers {
-		if c.State == string(runningState) {
+		if c.State != string(runningState) {
 			pod.Status.Phase = v1.PodFailed
+			pod.Status.Reason = c.Status
 		}
 		serviceName := c.Labels[api.ServiceLabel]
 		_, podContainerName := parseContainerServiceName(serviceName)
@@ -375,13 +392,15 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 	for _, c := range pod.Spec.Containers {
 		mobyContainer := dockerContainers[c.Name]
 		containerStatus := v1.ContainerStatus{
-			Name:  c.Name,
-			Image: c.Image,
-			State: containerStateToK8sContainerState(mobyContainer),
-			Ready: true,
+			Name:         c.Name,
+			Image:        c.Image,
+			State:        containerStateToK8sContainerState(mobyContainer),
+			Ready:        true,
+			RestartCount: 0,
 		}
 		pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
 	}
+	logrus.Infof("podName:%v status:%v", pod.Name, pod.Status)
 	return &pod
 }
 

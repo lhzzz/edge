@@ -102,36 +102,74 @@ func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetRes
 }
 
 func (e *edgelet) CreatePod(ctx context.Context, req *pb.CreatePodRequest) (*pb.CreatePodResponse, error) {
+	logrus.Info("CreatePod podName:", req.Pod.ObjectMeta.Name)
 	resp := &pb.CreatePodResponse{}
 	err := e.pm.CreatePod(ctx, req.Pod)
 	if err != nil {
+		logrus.Error("CreatePod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
 	return resp, nil
 }
 
 func (e *edgelet) UpdatePod(ctx context.Context, req *pb.UpdatePodRequest) (*pb.UpdatePodResponse, error) {
-	return nil, nil
+	logrus.Info("UpdatePod podName:", req.Pod.ObjectMeta.Name)
+	resp := &pb.UpdatePodResponse{}
+	err := e.pm.UpdatePod(ctx, req.Pod)
+	if err != nil {
+		logrus.Error("UpdatePod failed, err=", err)
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+	}
+	return resp, nil
 }
 
 func (e *edgelet) DeletePod(ctx context.Context, req *pb.DeletePodRequest) (*pb.DeletePodResponse, error) {
+	logrus.Info("DeletePod podName:", req.Pod.ObjectMeta.Name)
 	resp := &pb.DeletePodResponse{}
 	err := e.pm.DeletePod(ctx, req.Pod)
 	if err != nil {
+		logrus.Error("DeletePod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
 	return resp, nil
 }
 
 func (e *edgelet) GetPod(ctx context.Context, req *pb.GetPodRequest) (*pb.GetPodResponse, error) {
-	return nil, nil
+	resp := &pb.GetPodResponse{}
+	logrus.Info("GetPod :", req)
+	pod, err := e.pm.GetPod(ctx, req.Namespace, req.Name)
+	if err != nil {
+		logrus.Error("GetPod failed, err=", err)
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		return resp, nil
+	}
+	resp.Pod = pod
+	return resp, nil
 }
 
 func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetPodsResponse, error) {
-	return nil, nil
+	resp := &pb.GetPodsResponse{}
+	logrus.Info("GetPods :", req)
+	pods, err := e.pm.GetPods(ctx)
+	if err != nil {
+		logrus.Error("GetPods failed, err=", err)
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		return resp, nil
+	}
+	resp.Pods = pods
+	return resp, nil
 }
 
 func (e *edgelet) GetPodStatus(ctx context.Context, req *pb.GetPodStatusRequest) (*pb.GetPodStatusResponse, error) {
+	resp := &pb.GetPodStatusResponse{}
+	logrus.Info("GetPodStatus :", req)
+	status, err := e.pm.GetPodStatus(ctx, req.Namespace, req.Name)
+	if err != nil {
+		logrus.Error("GetPodStatus failed, err=", err)
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		return resp, nil
+	}
+	resp.PodStatus = status
 	return nil, nil
 }
 
@@ -140,9 +178,9 @@ func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Ed
 }
 
 func (e *edgelet) RunInContainer(ctx context.Context, req *pb.RunInContainerRequest) (*pb.RunInContainerResponse, error) {
-	return nil, nil
+	return &pb.RunInContainerResponse{}, nil
 }
 
 func (e *edgelet) GetStatsSummary(ctx context.Context, req *pb.GetStatsSummaryRequest) (*pb.GetStatsSummaryResponse, error) {
-	return nil, nil
+	return &pb.GetStatsSummaryResponse{}, nil
 }
