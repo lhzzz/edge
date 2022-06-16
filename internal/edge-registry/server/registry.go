@@ -1,10 +1,9 @@
 package server
 
 import (
+	"context"
 	"edge/api/edge-proto/pb"
-	"edge/internal/constant"
 	"edge/internal/constant/manifests"
-	"fmt"
 	"net/http"
 	"sync"
 
@@ -12,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	netv1 "k8s.io/api/networking/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -63,6 +62,14 @@ func createNode(c *gin.Context) {
 		"NodeName":      req.NodeName,
 		"NodeNamespace": namespace,
 	}
+
+	node, _ := getK8sClient().CoreV1().Nodes().Get(context.TODO(), req.NodeName, v1.GetOptions{})
+	if node != nil {
+		logrus.Infof("Node %s Has Already Exist", req.NodeName)
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+
 	if err := kubeclient.CreateResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
 		logrus.Error("CreateResourceWithFile failed,err=", err)
 		resp.Error = pbErrInternal(err)
@@ -70,26 +77,24 @@ func createNode(c *gin.Context) {
 		return
 	}
 
-	pathType := netv1.PathTypePrefix
-	route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, req.NodeName)
-	path := netv1.HTTPIngressPath{
-		Path:     route,
-		PathType: &pathType,
-		Backend: netv1.IngressBackend{
-			Service: &netv1.IngressServiceBackend{
-				Name: req.NodeName,
-				Port: netv1.ServiceBackendPort{Number: constant.VirtualKubeletDeafultPort},
-			},
-		},
-	}
-	if err := kubeclient.AppendPathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, path); err != nil {
-		logrus.Error("create Ingress failed,err=", err)
-		resp.Error = pbErrInternal(err)
-		c.JSON(http.StatusInternalServerError, resp)
-		return
-	}
-
-	resp.VkUrl = route
+	// pathType := netv1.PathTypePrefix
+	// route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, req.NodeName)
+	// path := netv1.HTTPIngressPath{
+	// 	Path:     route,
+	// 	PathType: &pathType,
+	// 	Backend: netv1.IngressBackend{
+	// 		Service: &netv1.IngressServiceBackend{
+	// 			Name: req.NodeName,
+	// 			Port: netv1.ServiceBackendPort{Number: constant.VirtualKubeletDeafultPort},
+	// 		},
+	// 	},
+	// }
+	// if err := kubeclient.AppendPathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, path); err != nil {
+	// 	logrus.Error("create Ingress failed,err=", err)
+	// 	resp.Error = pbErrInternal(err)
+	// 	c.JSON(http.StatusInternalServerError, resp)
+	// 	return
+	// }
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -114,13 +119,13 @@ func deleteNode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, nodeName)
-	if err := kubeclient.RemovePathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, route); err != nil {
-		logrus.Error("remove path in Ingress failed,err=", err)
-		resp.Error = pbErrInternal(err)
-		c.JSON(http.StatusInternalServerError, resp)
-		return
-	}
+	// route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, nodeName)
+	// if err := kubeclient.RemovePathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, route); err != nil {
+	// 	logrus.Error("remove path in Ingress failed,err=", err)
+	// 	resp.Error = pbErrInternal(err)
+	// 	c.JSON(http.StatusInternalServerError, resp)
+	// 	return
+	// }
 
 	c.JSON(http.StatusOK, resp)
 }

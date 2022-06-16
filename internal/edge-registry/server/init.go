@@ -14,7 +14,7 @@ const (
 func initResource() error {
 	common.InitLogger()
 
-	if err := kubeclient.CreateResourceWithFile(getK8sClient(), manifests.EdgeIngressYaml, nil); err != nil {
+	if err := kubeclient.CreateResourceWithFile(getK8sClient(), manifests.VirtualKubeletConfigMapYaml, nil); err != nil {
 		return err
 	}
 	return nil

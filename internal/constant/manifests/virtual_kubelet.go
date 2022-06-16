@@ -2,14 +2,23 @@ package manifests
 
 const VIRTUAL_KUBELET = "virtual_kubelet.yaml"
 
-//证书是通过挂载的方式打进去的，这里需要修改
+const VirtualKubeletConfigMapYaml = `
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vk-config
+data:
+  cci.toml: |
+    {
+        "cpu":"20",
+        "memory":"100Gi",
+        "pods":"20",
+        "edgeaddress":""
+    }
+`
+
 //因为virtual-kubelet需要和apiserver进行交互，创建Node
 const VirtualKubeletYaml = `
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{.NodeNamespace}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -17,16 +26,16 @@ metadata:
   name: {{.NodeName}}
   namespace: edge-cluster
   labels:
-    k8s-app: {{.NodeName}}
+    k8s-app: vk-{{.NodeName}}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: {{.NodeName}}
+      k8s-app: vk-{{.NodeName}}
   template:
     metadata:
       labels:
-        k8s-app: {{.NodeName}}
+        k8s-app: vk-{{.NodeName}}
     spec:
       containers:
       - name: virtual-kubelet
@@ -35,27 +44,23 @@ spec:
         - /home/virtual-kubelet
         args:
         - --nodename={{.NodeName}}
-        - --namespace={{.NodeNamespace}}
-        - --provider-config=cci.toml
-        - --disable-taint=true
-        - --provider=mock
+        - --provider-config=/home/vk-config/cci.toml
+        - --provider=zhst
         imagePullPolicy: IfNotPresent
-        env:
-          - name: APISERVER_CERT_LOCATION
-            value: "/home/kubeapi_client.crt"
-          - name: APISERVER_KEY_LOCATION
-            value: "/home/kubeapi_client.key"
-          - name: APISERVER_CA_CERT_LOCATION
-            value: "/home/kubeapi_ca.crt"
         volumeMounts:
           - name: kube-config
             mountPath: /root/.kube/
             readOnly: true
+          - name: cci
+            mountPath: /home/vk-config
       volumes:
       - name: kube-config
         hostPath:
           path: /root/.kube
           type: ""
+      - name: cci
+        configMap:
+          name: vk-config
       nodeSelector:
         virtual: "false"
 ---
@@ -63,8 +68,8 @@ kind: Service
 apiVersion: v1
 metadata:
   labels:
-    k8s-app: {{.NodeName}}
-  name: {{.NodeName}}
+    k8s-app: vk-{{.NodeName}}
+  name: vk-{{.NodeName}}
   namespace: edge-cluster
 spec:
   ports:
@@ -75,5 +80,5 @@ spec:
     port: 80
     targetPort: 80
   selector:
-    k8s-app: {{.NodeName}}
+    k8s-app: vk-{{.NodeName}}
 `

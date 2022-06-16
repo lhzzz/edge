@@ -33,6 +33,7 @@ const (
 	k8sNamespaceLabel = "k8s-namespace"
 	k8sPodInfoLabel   = "k8s-podinfo"
 	k8sPodNameLabel   = "k8s-podname"
+	k8sInitContainer  = "k8s-initContainer"
 	always            = "always"
 )
 
@@ -177,7 +178,7 @@ func (d *dcpPodManager) GetPodStatus(ctx context.Context, namespace, podName str
 	return &pod.Status, nil
 }
 
-func (d *dcpPodManager) GetContainerLogs(ctx context.Context) {
+func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string) {
 
 }
 
@@ -186,8 +187,12 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Po
 	project.Services = k8sContainersToServices(pod, d.project)
 	project.Volumes = k8sVolumeToVolume(pod.Spec.Volumes)
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
-		Create: api.CreateOptions{Inherit: true, Recreate: "force"},
-		Start:  api.StartOptions{Project: &project},
+		Create: api.CreateOptions{
+			Inherit:              true,
+			Recreate:             api.RecreateForce,
+			RecreateDependencies: api.RecreateDiverged,
+		},
+		Start: api.StartOptions{Project: &project},
 	})
 	if err != nil {
 		logrus.Info("createOrUpdate Pod failed,err=", err)
@@ -212,7 +217,7 @@ func k8sContainersToServices(pod *v1.Pod, projectName string) types.Services {
 	lastServiceName := ""
 	initServiceNames := []string{}
 	for i, ic := range pod.Spec.InitContainers {
-		svrconf := k8sContainer2ServiceConfig(pod, ic, projectName)
+		svrconf := k8sContainer2ServiceConfig(pod, ic, projectName, true)
 		if i != 0 {
 			svrconf.DependsOn = types.DependsOnConfig{
 				lastServiceName: serviceHealthDependency,
@@ -223,7 +228,7 @@ func k8sContainersToServices(pod *v1.Pod, projectName string) types.Services {
 		initServiceNames = append(initServiceNames, svrconf.Name)
 	}
 	for _, c := range pod.Spec.Containers {
-		svrconf := k8sContainer2ServiceConfig(pod, c, projectName)
+		svrconf := k8sContainer2ServiceConfig(pod, c, projectName, false)
 		svrconf.DependsOn = types.DependsOnConfig{}
 		for _, isn := range initServiceNames {
 			svrconf.DependsOn[isn] = serviceHealthDependency
@@ -267,7 +272,7 @@ func parseContainerServiceName(serviceName string) (podName, containerName strin
 	return
 }
 
-func newDefaultDockerComposeLabels(pod *v1.Pod, project, service string) types.Labels {
+func newDefaultDockerComposeLabels(pod *v1.Pod, project, service string, isInit bool) types.Labels {
 	labels := types.Labels{}
 	labels.Add(api.ProjectLabel, project)
 	labels.Add(api.ServiceLabel, service)
@@ -276,17 +281,20 @@ func newDefaultDockerComposeLabels(pod *v1.Pod, project, service string) types.L
 	labels.Add(k8sPodNameLabel, pod.ObjectMeta.Name)
 	jbyte, _ := json.Marshal(pod)
 	labels.Add(k8sPodInfoLabel, string(jbyte))
+	if isInit {
+		labels.Add(k8sInitContainer, "true")
+	}
 	return labels
 }
 
 //pod里面的容器转换成docker-compose的service
-func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project string) types.ServiceConfig {
+func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project string, isInit bool) types.ServiceConfig {
 	svrconf := types.ServiceConfig{}
 	podName := parseK8sPodName(pod)
 	svrconf.Name = makeContainerServiceName(podName, container.Name)
 	svrconf.Command = append(container.Command, container.Args...)
 	svrconf.Image = container.Image
-	svrconf.Labels = newDefaultDockerComposeLabels(pod, project, svrconf.Name)
+	svrconf.Labels = newDefaultDockerComposeLabels(pod, project, svrconf.Name, isInit)
 	svrconf.CustomLabels = types.Labels{}
 	svrconf.Environment = types.MappingWithEquals{}
 	for _, e := range container.Env {
@@ -363,7 +371,6 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 		logrus.Error("json unmarshal container pod label failed,err=", err)
 		return nil
 	}
-	pod.Status.Reset()
 	pod.Status.Phase = v1.PodRunning
 	pod.Status.Reason = ""
 	pod.Status.Conditions = []v1.PodCondition{
@@ -381,20 +388,40 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 		},
 	}
 
-	dockerContainers := make(map[string]moby.Container)
+	initContainers := make(map[string]moby.Container)
+	runContainers := make(map[string]moby.Container)
 	for _, c := range containers {
 		logrus.Infof("podName:%v container:%v state:%v status:%v", pod.Name, c.Names, c.State, c.Status)
 		if c.State != string(runningState) {
-			pod.Status.Phase = v1.PodUnknown
+			pod.Status.Phase = v1.PodFailed
 			pod.Status.Reason = c.Status
 		}
 		serviceName := c.Labels[api.ServiceLabel]
 		_, podContainerName := parseContainerServiceName(serviceName)
-		dockerContainers[podContainerName] = c
+		if _, ok := c.Labels[k8sInitContainer]; ok {
+			initContainers[podContainerName] = c
+		} else {
+			runContainers[podContainerName] = c
+		}
 	}
 	//spec container
+
+	var initStatus, statuses []v1.ContainerStatus
+	for _, ic := range pod.Spec.InitContainers {
+		mobyContainer := initContainers[ic.Name]
+		containerStatus := v1.ContainerStatus{
+			Name:         ic.Name,
+			Image:        ic.Image,
+			State:        containerStateToK8sContainerState(mobyContainer),
+			Ready:        true,
+			RestartCount: 0,
+		}
+		initStatus = append(initStatus, containerStatus)
+		pod.Status.InitContainerStatuses = initStatus
+	}
+
 	for _, c := range pod.Spec.Containers {
-		mobyContainer := dockerContainers[c.Name]
+		mobyContainer := runContainers[c.Name]
 		containerStatus := v1.ContainerStatus{
 			Name:         c.Name,
 			Image:        c.Image,
@@ -402,7 +429,8 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 			Ready:        true,
 			RestartCount: 0,
 		}
-		pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+		statuses = append(statuses, containerStatus)
+		pod.Status.ContainerStatuses = statuses
 	}
 	logrus.Infof("podname:%v status:%v", pod.Name, pod.Status.Phase)
 	return &pod
@@ -411,16 +439,16 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 func containerStateToK8sContainerState(container moby.Container) v1.ContainerState {
 	ret := v1.ContainerState{}
 	cs := containerState(container.State)
-	now := metav1.NewTime(time.Now())
-	if cs == runningState || cs == createdState {
-		ret.Running = &v1.ContainerStateRunning{
-			StartedAt: now,
-		}
-		return ret
+
+	createAt := metav1.NewTime(time.Unix(container.Created, 0))
+	ret.Running = &v1.ContainerStateRunning{
+		StartedAt: createAt,
 	}
 	if cs == removingState || cs == deadState || cs == exitedState {
 		ret.Terminated = &v1.ContainerStateTerminated{
-			Message: container.Status,
+			Message:   container.Status,
+			Reason:    container.State,
+			StartedAt: createAt,
 		}
 		return ret
 	}

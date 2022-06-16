@@ -18,7 +18,7 @@ type PodManager interface {
 	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
 	GetPods(ctx context.Context) ([]*v1.Pod, error)
 	GetPodStatus(ctx context.Context, namespace, name string) (*v1.PodStatus, error)
-	GetContainerLogs(ctx context.Context)
+	GetContainerLogs(ctx context.Context, namespace, podname, containerName string)
 }
 
 func New(opts ...config.Option) PodManager {
