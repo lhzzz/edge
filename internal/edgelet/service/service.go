@@ -9,14 +9,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"runtime"
+	"strings"
 
 	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type edgelet struct {
-	cloudAddress string
-	pm           podmanager.PodManager
+	cloudAddress       string
+	pm                 podmanager.PodManager
+	lastHeartbeatTime  metav1.Time
+	lastTransitionTime metav1.Time
+	localIPAddress     string
 }
 
 const (
@@ -25,9 +34,11 @@ const (
 )
 
 func NewEdgelet(cloudAddress string) *edgelet {
+	localaddress, _ := getOutBoundIP()
 	return &edgelet{
-		cloudAddress: cloudAddress,
-		pm:           podmanager.New(),
+		cloudAddress:   cloudAddress,
+		localIPAddress: localaddress,
+		pm:             podmanager.New(),
 	}
 }
 
@@ -172,6 +183,121 @@ func (e *edgelet) DescribeNodeStatus(ctx context.Context, req *pb.DescribeNodeSt
 		return resp, nil
 	}
 	resp.ChangePods = changePods
-	//获取宿主机资源
+	resp.Node = e.configNode()
+	e.lastHeartbeatTime = metav1.Now()
+	e.lastTransitionTime = metav1.Now()
 	return resp, nil
+}
+
+func (e *edgelet) configNode() *v1.Node {
+	node := &v1.Node{
+		Status: v1.NodeStatus{
+			Capacity:    e.capacity(),
+			Allocatable: e.allocatable(),
+			Conditions:  e.nodeConditions(),
+			Addresses:   e.nodeAddresses(),
+			NodeInfo: v1.NodeSystemInfo{
+				OperatingSystem: e.operatingSystem(),
+				Architecture:    e.architecture(),
+			},
+		},
+	}
+	node.ObjectMeta.Labels["alpha.service-controller.kubernetes.io/exclude-balancer"] = "true"
+	node.ObjectMeta.Labels["node.kubernetes.io/exclude-from-external-load-balancers"] = "true"
+	return node
+}
+
+// Capacity returns a resource list containing the capacity limits.
+func (e *edgelet) capacity() v1.ResourceList {
+	return v1.ResourceList{
+		"cpu":    resource.MustParse(""),
+		"memory": resource.MustParse(""),
+		"pods":   resource.MustParse(""),
+	}
+}
+
+func (e *edgelet) allocatable() v1.ResourceList {
+	return v1.ResourceList{
+		"cpu":    resource.MustParse(""),
+		"memory": resource.MustParse(""),
+		"pods":   resource.MustParse(""),
+	}
+}
+
+// NodeConditions returns a list of conditions (Ready, OutOfDisk, etc), for updates to the node status
+// within Kubernetes.
+func (e *edgelet) nodeConditions() []v1.NodeCondition {
+	nodeConditions := []v1.NodeCondition{
+		{
+			Type:               "Ready",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletPending",
+			Message:            "kubelet is pending.",
+		},
+		{
+			Type:               "OutOfDisk",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletHasSufficientDisk",
+			Message:            "kubelet has sufficient disk space available",
+		},
+		{
+			Type:               "MemoryPressure",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletHasSufficientMemory",
+			Message:            "kubelet has sufficient memory available",
+		},
+		{
+			Type:               "DiskPressure",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletHasNoDiskPressure",
+			Message:            "kubelet has no disk pressure",
+		},
+		{
+			Type:               "NetworkUnavailable",
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "RouteCreated",
+			Message:            "RouteController created a route",
+		},
+	}
+	return nodeConditions
+}
+
+// NodeAddresses returns a list of addresses for the node status
+// within Kubernetes.
+func (e *edgelet) nodeAddresses() []v1.NodeAddress {
+	return []v1.NodeAddress{
+		{
+			Type:    "InternalIP",
+			Address: e.localIPAddress,
+		},
+	}
+}
+
+func (e *edgelet) operatingSystem() string {
+	return runtime.GOOS
+}
+
+func (e *edgelet) architecture() string {
+	return runtime.GOARCH
+}
+
+func getOutBoundIP() (ip string, err error) {
+	conn, err := net.Dial("udp", "8.8.8.8:53")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	ip = strings.Split(localAddr.String(), ":")[0]
+	return
 }

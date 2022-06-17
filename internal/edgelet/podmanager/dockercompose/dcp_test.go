@@ -3,8 +3,11 @@ package dockercompose
 import (
 	"context"
 	"edge/internal/edgelet/podmanager/config"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/compose-spec/compose-go/types"
@@ -266,4 +269,36 @@ func Test_listPod(t *testing.T) {
 	pods, err := dir.GetPod(context.Background(), "default", "nginx-deployment-2xclp")
 
 	t.Log(pods, err)
+}
+
+func getOutBoundIP() (ip string, err error) {
+	conn, err := net.Dial("udp", "8.8.8.8:53")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	ip = strings.Split(localAddr.String(), ":")[0]
+	return
+}
+
+func Test_getLocalIPAddress(t *testing.T) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for _, address := range addrs {
+		// 检查ip地址判断是否回环地址
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				fmt.Println(ipnet.IP.String())
+			}
+		}
+	}
+}
+
+func Test_getip(t *testing.T) {
+	ip, _ := getOutBoundIP()
+	t.Log(ip)
 }
