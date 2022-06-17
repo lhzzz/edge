@@ -13,7 +13,11 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/mem"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -26,19 +30,27 @@ type edgelet struct {
 	lastHeartbeatTime  metav1.Time
 	lastTransitionTime metav1.Time
 	localIPAddress     string
+	kernalVersion      string
+	osiImage           string
 }
 
 const (
+	GiB = 1024 * 1024 * 1024
+
 	registryUrlFmt = "%s/edge/registry/node"
 	logoutUrlFmt   = "%s/edge/registry/node?name=%s"
 )
 
 func NewEdgelet(cloudAddress string) *edgelet {
 	localaddress, _ := getOutBoundIP()
+	kernalversion, _ := host.KernelVersion()
+	platform, _, _, _ := host.PlatformInformation()
 	return &edgelet{
 		cloudAddress:   cloudAddress,
 		localIPAddress: localaddress,
 		pm:             podmanager.New(),
+		kernalVersion:  kernalversion,
+		osiImage:       platform,
 	}
 }
 
@@ -190,85 +202,108 @@ func (e *edgelet) DescribeNodeStatus(ctx context.Context, req *pb.DescribeNodeSt
 }
 
 func (e *edgelet) configNode() *v1.Node {
+	ms, _ := mem.VirtualMemory()
 	node := &v1.Node{
 		Status: v1.NodeStatus{
-			Capacity:    e.capacity(),
-			Allocatable: e.allocatable(),
+			Phase:       v1.NodeRunning,
+			Capacity:    e.capacity(ms),
+			Allocatable: e.allocatable(ms),
 			Conditions:  e.nodeConditions(),
 			Addresses:   e.nodeAddresses(),
 			NodeInfo: v1.NodeSystemInfo{
-				OperatingSystem: e.operatingSystem(),
-				Architecture:    e.architecture(),
+				OperatingSystem:         e.operatingSystem(),
+				Architecture:            e.architecture(),
+				KernelVersion:           e.kernalVersion,
+				OSImage:                 e.osiImage,
+				ContainerRuntimeVersion: "",
 			},
 		},
 	}
-	node.ObjectMeta.Labels["alpha.service-controller.kubernetes.io/exclude-balancer"] = "true"
-	node.ObjectMeta.Labels["node.kubernetes.io/exclude-from-external-load-balancers"] = "true"
 	return node
 }
 
 // Capacity returns a resource list containing the capacity limits.
-func (e *edgelet) capacity() v1.ResourceList {
+func (e *edgelet) capacity(minfo *mem.VirtualMemoryStat) v1.ResourceList {
+	var total uint64 = 100
+	if minfo != nil {
+		total = minfo.Total / GiB
+	}
 	return v1.ResourceList{
-		"cpu":    resource.MustParse(""),
-		"memory": resource.MustParse(""),
-		"pods":   resource.MustParse(""),
+		"cpu":    resource.MustParse("100"),
+		"memory": resource.MustParse(fmt.Sprintf("%dGi", total)),
 	}
 }
 
-func (e *edgelet) allocatable() v1.ResourceList {
+func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
+	var usage uint64 = 0
+	if minfo != nil {
+		usage = minfo.Used / GiB
+	}
+	percent, _ := cpu.Percent(time.Second, false)
 	return v1.ResourceList{
-		"cpu":    resource.MustParse(""),
-		"memory": resource.MustParse(""),
-		"pods":   resource.MustParse(""),
+		"cpu":    resource.MustParse(fmt.Sprint(percent)),
+		"memory": resource.MustParse(fmt.Sprintf("%dGi", usage)),
 	}
 }
 
 // NodeConditions returns a list of conditions (Ready, OutOfDisk, etc), for updates to the node status
 // within Kubernetes.
 func (e *edgelet) nodeConditions() []v1.NodeCondition {
-	nodeConditions := []v1.NodeCondition{
-		{
-			Type:               "Ready",
-			Status:             v1.ConditionFalse,
-			LastHeartbeatTime:  e.lastHeartbeatTime,
-			LastTransitionTime: e.lastTransitionTime,
-			Reason:             "KubeletPending",
-			Message:            "kubelet is pending.",
-		},
-		{
-			Type:               "OutOfDisk",
-			Status:             v1.ConditionFalse,
-			LastHeartbeatTime:  e.lastHeartbeatTime,
-			LastTransitionTime: e.lastTransitionTime,
-			Reason:             "KubeletHasSufficientDisk",
-			Message:            "kubelet has sufficient disk space available",
-		},
-		{
-			Type:               "MemoryPressure",
-			Status:             v1.ConditionFalse,
-			LastHeartbeatTime:  e.lastHeartbeatTime,
-			LastTransitionTime: e.lastTransitionTime,
-			Reason:             "KubeletHasSufficientMemory",
-			Message:            "kubelet has sufficient memory available",
-		},
-		{
-			Type:               "DiskPressure",
-			Status:             v1.ConditionFalse,
-			LastHeartbeatTime:  e.lastHeartbeatTime,
-			LastTransitionTime: e.lastTransitionTime,
-			Reason:             "KubeletHasNoDiskPressure",
-			Message:            "kubelet has no disk pressure",
-		},
-		{
-			Type:               "NetworkUnavailable",
-			Status:             v1.ConditionFalse,
-			LastHeartbeatTime:  e.lastHeartbeatTime,
-			LastTransitionTime: e.lastTransitionTime,
-			Reason:             "RouteCreated",
-			Message:            "RouteController created a route",
-		},
-	}
+	nodeConditions := []v1.NodeCondition{}
+	//ready
+
+	nodeConditions = append(nodeConditions, v1.NodeCondition{
+		Type:               "Ready",
+		Status:             v1.ConditionTrue,
+		LastHeartbeatTime:  e.lastHeartbeatTime,
+		LastTransitionTime: e.lastTransitionTime,
+		Reason:             "EdgeletReady",
+		Message:            "Edgelet is ready.",
+	})
+
+	//disk
+	//memory
+	//network
+	// {
+	// 	Type:               "Ready",
+	// 	Status:             v1.ConditionFalse,
+	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 	LastTransitionTime: e.lastTransitionTime,
+	// 	Reason:             "KubeletPending",
+	// 	Message:            "kubelet is pending.",
+	// },
+	// {
+	// 	Type:               "OutOfDisk",
+	// 	Status:             v1.ConditionFalse,
+	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 	LastTransitionTime: e.lastTransitionTime,
+	// 	Reason:             "KubeletHasSufficientDisk",
+	// 	Message:            "kubelet has sufficient disk space available",
+	// },
+	// {
+	// 	Type:               "MemoryPressure",
+	// 	Status:             v1.ConditionFalse,
+	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 	LastTransitionTime: e.lastTransitionTime,
+	// 	Reason:             "KubeletHasSufficientMemory",
+	// 	Message:            "kubelet has sufficient memory available",
+	// },
+	// {
+	// 	Type:               "DiskPressure",
+	// 	Status:             v1.ConditionFalse,
+	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 	LastTransitionTime: e.lastTransitionTime,
+	// 	Reason:             "KubeletHasNoDiskPressure",
+	// 	Message:            "kubelet has no disk pressure",
+	// },
+	// {
+	// 	Type:               "NetworkUnavailable",
+	// 	Status:             v1.ConditionFalse,
+	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 	LastTransitionTime: e.lastTransitionTime,
+	// 	Reason:             "RouteCreated",
+	// 	Message:            "RouteController created a route",
+	// },
 	return nodeConditions
 }
 
