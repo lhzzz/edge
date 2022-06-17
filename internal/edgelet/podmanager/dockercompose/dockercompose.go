@@ -159,27 +159,12 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	return ret, nil
 }
 
-//获取pod的status
-func (d *dcpPodManager) GetPodStatus(ctx context.Context, namespace, podName string) (*v1.PodStatus, error) {
-	f := getDefaultFilters(d.project)
-	f = append(f, namespaceFilter(namespace))
-	f = append(f, podnameFilter(podName))
-	containers, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
-		Filters: filters.NewArgs(f...),
-		All:     true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(containers) == 0 {
-		return nil, errdefs.NotFoundf("%s/%s not found", namespace, podName)
-	}
-	pod := containerToK8sPod(containers...)
-	return &pod.Status, nil
-}
-
 func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string) {
 
+}
+
+func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error) {
+	return nil, nil
 }
 
 func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
@@ -393,7 +378,7 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 	for _, c := range containers {
 		logrus.Infof("podName:%v container:%v state:%v status:%v", pod.Name, c.Names, c.State, c.Status)
 		if c.State != string(runningState) {
-			pod.Status.Phase = v1.PodFailed
+			pod.Status.Phase = v1.PodUnknown
 			pod.Status.Reason = c.Status
 		}
 		serviceName := c.Labels[api.ServiceLabel]

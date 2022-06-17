@@ -41,3 +41,7 @@ func (k *k8sPodManager) GetPodStatus(ctx context.Context, namespace, name string
 func (k *k8sPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string) {
 
 }
+
+func (k *k8sPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error) {
+	return nil, nil
+}

@@ -2,6 +2,7 @@ package manifests
 
 const VIRTUAL_KUBELET = "virtual_kubelet.yaml"
 
+//TODO:放contanst由代码生成还是直接deploy
 const VirtualKubeletConfigMapYaml = `
 apiVersion: v1
 kind: ConfigMap

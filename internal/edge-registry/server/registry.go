@@ -39,8 +39,6 @@ func getK8sClient() *kubernetes.Clientset {
 
 /*
 1、创建一个deploy和svc给virtual-kubelet ? (svc能否只用一个)
-2、创建一个ingress给这个svc
-3、返回ingress创建的路由
 */
 func createNode(c *gin.Context) {
 	req := &pb.JoinRequest{}

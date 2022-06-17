@@ -263,7 +263,7 @@ func Test_deletePod(t *testing.T) {
 
 func Test_listPod(t *testing.T) {
 	dir := NewPodManager(config.WithProjectName("compose"))
-	pods, err := dir.GetPodStatus(context.Background(), "default", "nginx-deployment-2xclp")
+	pods, err := dir.GetPod(context.Background(), "default", "nginx-deployment-2xclp")
 
 	t.Log(pods, err)
 }

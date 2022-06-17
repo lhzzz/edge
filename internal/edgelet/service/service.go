@@ -10,16 +10,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"sync"
 
 	"github.com/sirupsen/logrus"
 )
 
 type edgelet struct {
 	cloudAddress string
-	vkUrl        string
-	mutex        sync.RWMutex
-	notify       chan struct{}
 	pm           podmanager.PodManager
 }
 
@@ -31,7 +27,6 @@ const (
 func NewEdgelet(cloudAddress string) *edgelet {
 	return &edgelet{
 		cloudAddress: cloudAddress,
-		notify:       make(chan struct{}, 1),
 		pm:           podmanager.New(),
 	}
 }
@@ -56,18 +51,6 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 	if err != nil {
 		logrus.Error("proto Unmarshal failed,err=", err)
 		return nil, err
-	}
-	isNeedNotify := false
-	if len(respbody.VkUrl) > 0 {
-		e.mutex.Lock()
-		if respbody.VkUrl != e.vkUrl {
-			e.vkUrl = respbody.VkUrl
-			isNeedNotify = true
-		}
-		e.mutex.Unlock()
-	}
-	if isNeedNotify {
-		e.notify <- struct{}{}
 	}
 	return &respbody, nil
 }
@@ -168,22 +151,6 @@ func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetP
 	return resp, nil
 }
 
-func (e *edgelet) GetPodStatus(ctx context.Context, req *pb.GetPodStatusRequest) (*pb.GetPodStatusResponse, error) {
-	resp := &pb.GetPodStatusResponse{}
-	logrus.Info("GetPodStatus :", req)
-	status, err := e.pm.GetPodStatus(ctx, req.Namespace, req.Name)
-	if err != nil {
-		logrus.Error("GetPodStatus failed, err=", err)
-		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
-		if errdefs.IsNotFound(err) {
-			resp.Error.Code = pb.ErrorCode_NO_RESULT
-		}
-		return resp, nil
-	}
-	resp.PodStatus = status
-	return nil, nil
-}
-
 func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
 	return nil
 }
@@ -194,4 +161,17 @@ func (e *edgelet) RunInContainer(ctx context.Context, req *pb.RunInContainerRequ
 
 func (e *edgelet) GetStatsSummary(ctx context.Context, req *pb.GetStatsSummaryRequest) (*pb.GetStatsSummaryResponse, error) {
 	return &pb.GetStatsSummaryResponse{}, nil
+}
+
+func (e *edgelet) DescribeNodeStatus(ctx context.Context, req *pb.DescribeNodeStatusRequest) (*pb.DescribeNodeStatusResponse, error) {
+	logrus.Info("DescribeNodeStatus")
+	resp := &pb.DescribeNodeStatusResponse{}
+	changePods, err := e.pm.DescribePodsStatus(ctx)
+	if err != nil {
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		return resp, nil
+	}
+	resp.ChangePods = changePods
+	//获取宿主机资源
+	return resp, nil
 }
