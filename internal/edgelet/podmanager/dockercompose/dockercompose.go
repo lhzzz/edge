@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	pmconf "edge/internal/edgelet/podmanager/config"
@@ -23,6 +24,7 @@ import (
 	"github.com/docker/compose/v2/pkg/api"
 	"github.com/docker/compose/v2/pkg/compose"
 	moby "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -67,6 +69,8 @@ type dcpPodManager struct {
 	composeApi api.Service
 	dockerCli  command.Cli
 	project    string
+	podEvents  map[string]struct{}
+	rwmutex    sync.RWMutex
 }
 
 //Docker Compose版本必须要在V2.0 以上
@@ -84,13 +88,22 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 	}
 	options := flags.NewClientOptions()
 	options.ConfigDir = filepath.Dir(config.Dir())
-	logrus.Info("config:", options.ConfigDir)
 	dockerCli.Initialize(options)
-	return &dcpPodManager{
+	composeAPI := compose.NewComposeService(dockerCli)
+	dcp := &dcpPodManager{
 		dockerCli:  dockerCli,
-		composeApi: compose.NewComposeService(dockerCli),
+		composeApi: composeAPI,
 		project:    conf.Project,
+		podEvents:  map[string]struct{}{},
 	}
+	go dcp.handleEvent(func(event api.Event) error {
+		dcp.rwmutex.Lock()
+		podName, _ := parseContainerServiceName(event.Service)
+		dcp.podEvents[podName] = struct{}{}
+		dcp.rwmutex.Unlock()
+		return nil
+	})
+	return dcp
 }
 
 //将k8s的pod转换为docker compose中的
@@ -118,7 +131,9 @@ func (d *dcpPodManager) DeletePod(ctx context.Context, pod *v1.Pod) error {
 
 func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (*v1.Pod, error) {
 	f := getDefaultFilters(d.project)
-	f = append(f, namespaceFilter(namespace))
+	if len(namespace) > 0 {
+		f = append(f, namespaceFilter(namespace))
+	}
 	f = append(f, podnameFilter(podName))
 	containers, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
 		Filters: filters.NewArgs(f...),
@@ -164,7 +179,61 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 }
 
 func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error) {
-	return nil, nil
+	var podNames []string
+	var pods []*v1.Pod
+	d.rwmutex.Lock()
+	for podName := range d.podEvents {
+		podNames = append(podNames, podName)
+		delete(d.podEvents, podName)
+	}
+	d.rwmutex.Unlock()
+
+	for _, podName := range podNames {
+		pod, err := d.GetPod(ctx, "", podName)
+		if err != nil {
+			continue
+		}
+		pods = append(pods, pod)
+	}
+	return pods, nil
+}
+
+func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
+	eventCh, errCh := d.dockerCli.Client().Events(context.Background(), moby.EventsOptions{
+		Filters: filters.NewArgs(projectFilter(d.project)),
+	})
+	for {
+		select {
+		case event := <-eventCh:
+			if event.Type != events.ContainerEventType {
+				continue
+			}
+			service := event.Actor.Attributes[api.ServiceLabel]
+			attributes := map[string]string{}
+			for k, v := range event.Actor.Attributes {
+				if strings.HasPrefix(k, "com.docker.compose.") {
+					continue
+				}
+				attributes[k] = v
+			}
+			timestamp := time.Unix(event.Time, 0)
+			if event.TimeNano != 0 {
+				timestamp = time.Unix(0, event.TimeNano)
+			}
+			err := consumer(api.Event{
+				Timestamp:  timestamp,
+				Service:    service,
+				Container:  event.ID,
+				Status:     event.Status,
+				Attributes: attributes,
+			})
+			if err != nil {
+				logrus.Error("handleEvent consumer failed ,err=", err)
+			}
+		case err := <-errCh:
+			logrus.Error("handleEvent receive err ,err=", err)
+		}
+	}
 }
 
 func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
@@ -173,9 +242,9 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Po
 	project.Volumes = k8sVolumeToVolume(pod.Spec.Volumes)
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
-			Inherit:              true,
-			Recreate:             api.RecreateForce,
-			RecreateDependencies: api.RecreateDiverged,
+			Inherit:  true,
+			Recreate: api.RecreateNever,
+			//RecreateDependencies: api.RecreateDiverged,
 		},
 		Start: api.StartOptions{Project: &project},
 	})

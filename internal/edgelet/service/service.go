@@ -241,7 +241,7 @@ func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	}
 	percent, _ := cpu.Percent(time.Second, false)
 	return v1.ResourceList{
-		"cpu":    resource.MustParse(fmt.Sprint(percent)),
+		"cpu":    resource.MustParse(fmt.Sprint(percent[0])),
 		"memory": resource.MustParse(fmt.Sprintf("%dGi", usage)),
 	}
 }
