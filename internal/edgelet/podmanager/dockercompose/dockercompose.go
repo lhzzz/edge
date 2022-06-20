@@ -6,16 +6,17 @@ package dockercompose
 
 import (
 	"context"
+	"edge/api/edge-proto/pb"
+	pmconf "edge/internal/edgelet/podmanager/config"
+	"edge/pkg/errdefs"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
-
-	pmconf "edge/internal/edgelet/podmanager/config"
-	"edge/pkg/errdefs"
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/command"
@@ -174,8 +175,25 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	return ret, nil
 }
 
-func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string) {
+func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error) {
+	f := getDefaultFilters(d.project)
+	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
+	mcs, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
+		Filters: filters.NewArgs(f...),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(mcs) == 0 {
+		return nil, errdefs.NotFoundf("%s/%s-%s not found", namespace, podname, containerName)
+	}
 
+	return d.dockerCli.Client().ContainerLogs(ctx, mcs[0].ID, moby.ContainerLogsOptions{
+		Since:      opts.SinceTime,
+		Timestamps: opts.Timestamps,
+		Follow:     opts.Follow,
+		Tail:       fmt.Sprint(opts.Tail),
+	})
 }
 
 func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error) {

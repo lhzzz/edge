@@ -2,7 +2,9 @@ package k8s
 
 import (
 	"context"
+	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/podmanager/config"
+	"io"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -38,8 +40,8 @@ func (k *k8sPodManager) GetPodStatus(ctx context.Context, namespace, name string
 	return nil, nil
 }
 
-func (k *k8sPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string) {
-
+func (k *k8sPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error) {
+	return nil, nil
 }
 
 func (k *k8sPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error) {

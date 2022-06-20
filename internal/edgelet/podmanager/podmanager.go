@@ -2,11 +2,10 @@ package podmanager
 
 import (
 	"context"
-	"os"
-
+	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/podmanager/config"
 	"edge/internal/edgelet/podmanager/dockercompose"
-	"edge/internal/edgelet/podmanager/k8s"
+	"io"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -17,14 +16,13 @@ type PodManager interface {
 	DeletePod(ctx context.Context, pod *v1.Pod) error
 	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
 	GetPods(ctx context.Context) ([]*v1.Pod, error)
-	GetContainerLogs(ctx context.Context, namespace, podname, containerName string)
+	GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error)
 	DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error)
 }
 
 func New(opts ...config.Option) PodManager {
-	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
-		return k8s.NewPodManager(opts...)
-	}
-	opts = append(opts, config.WithProjectName("compose"))
+	// if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+	// 	return k8s.NewPodManager(opts...)
+	// }
 	return dockercompose.NewPodManager(opts...)
 }

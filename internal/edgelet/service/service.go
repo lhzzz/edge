@@ -5,17 +5,17 @@ import (
 	"context"
 	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/podmanager"
+	"edge/internal/edgelet/podmanager/config"
 	"edge/pkg/errdefs"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"runtime"
 	"strings"
-	"time"
 
-	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/sirupsen/logrus"
@@ -41,6 +41,10 @@ const (
 	logoutUrlFmt   = "%s/edge/registry/node?name=%s"
 )
 
+var (
+	EOF = errors.New("EOF")
+)
+
 func NewEdgelet(cloudAddress string) *edgelet {
 	localaddress, _ := getOutBoundIP()
 	kernalversion, _ := host.KernelVersion()
@@ -48,7 +52,7 @@ func NewEdgelet(cloudAddress string) *edgelet {
 	return &edgelet{
 		cloudAddress:   cloudAddress,
 		localIPAddress: localaddress,
-		pm:             podmanager.New(),
+		pm:             podmanager.New(config.WithProjectName("compose")),
 		kernalVersion:  kernalversion,
 		osiImage:       platform,
 	}
@@ -175,6 +179,28 @@ func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetP
 }
 
 func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
+	ro, err := e.pm.GetContainerLogs(stream.Context(), req.Namespace, req.Name, req.ContainerName, req.Opts)
+	if err != nil {
+		return err
+	}
+	defer ro.Close()
+	for {
+		var data []byte
+		n, er := ro.Read(data)
+		if n > 0 {
+			ew := stream.Send(&pb.GetContainerLogsResponse{Log: data})
+			if ew != nil {
+				err = ew
+				break
+			}
+		}
+		if er != nil {
+			if er != EOF {
+				err = er
+			}
+			break
+		}
+	}
 	return nil
 }
 
@@ -231,18 +257,19 @@ func (e *edgelet) capacity(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	return v1.ResourceList{
 		"cpu":    resource.MustParse("100"),
 		"memory": resource.MustParse(fmt.Sprintf("%dGi", total)),
+		"pods":   resource.MustParse("30"),
 	}
 }
 
 func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	var usage uint64 = 0
 	if minfo != nil {
-		usage = minfo.Used / GiB
+		usage = minfo.Free / GiB
 	}
-	percent, _ := cpu.Percent(time.Second, false)
 	return v1.ResourceList{
-		"cpu":    resource.MustParse(fmt.Sprint(percent[0])),
+		"cpu":    resource.MustParse("100"),
 		"memory": resource.MustParse(fmt.Sprintf("%dGi", usage)),
+		"pods":   resource.MustParse("30"), //TODO:这里要动态修改
 	}
 }
 
@@ -264,46 +291,42 @@ func (e *edgelet) nodeConditions() []v1.NodeCondition {
 	//disk
 	//memory
 	//network
-	// {
-	// 	Type:               "Ready",
-	// 	Status:             v1.ConditionFalse,
-	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 	LastTransitionTime: e.lastTransitionTime,
-	// 	Reason:             "KubeletPending",
-	// 	Message:            "kubelet is pending.",
-	// },
-	// {
-	// 	Type:               "OutOfDisk",
-	// 	Status:             v1.ConditionFalse,
-	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 	LastTransitionTime: e.lastTransitionTime,
-	// 	Reason:             "KubeletHasSufficientDisk",
-	// 	Message:            "kubelet has sufficient disk space available",
-	// },
-	// {
-	// 	Type:               "MemoryPressure",
-	// 	Status:             v1.ConditionFalse,
-	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 	LastTransitionTime: e.lastTransitionTime,
-	// 	Reason:             "KubeletHasSufficientMemory",
-	// 	Message:            "kubelet has sufficient memory available",
-	// },
-	// {
-	// 	Type:               "DiskPressure",
-	// 	Status:             v1.ConditionFalse,
-	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 	LastTransitionTime: e.lastTransitionTime,
-	// 	Reason:             "KubeletHasNoDiskPressure",
-	// 	Message:            "kubelet has no disk pressure",
-	// },
-	// {
-	// 	Type:               "NetworkUnavailable",
-	// 	Status:             v1.ConditionFalse,
-	// 	LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 	LastTransitionTime: e.lastTransitionTime,
-	// 	Reason:             "RouteCreated",
-	// 	Message:            "RouteController created a route",
-	// },
+
+	// conds := []v1.NodeCondition{
+	// 	{
+	// 		Type:               "OutOfDisk",
+	// 		Status:             v1.ConditionTrue,
+	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 		LastTransitionTime: e.lastTransitionTime,
+	// 		Reason:             "KubeletHasSufficientDisk",
+	// 		Message:            "kubelet has sufficient disk space available",
+	// 	},
+	// 	{
+	// 		Type:               "MemoryPressure",
+	// 		Status:             v1.ConditionFalse,
+	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 		LastTransitionTime: e.lastTransitionTime,
+	// 		Reason:             "KubeletHasSufficientMemory",
+	// 		Message:            "kubelet has sufficient memory available",
+	// 	},
+	// 	{
+	// 		Type:               "DiskPressure",
+	// 		Status:             v1.ConditionFalse,
+	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 		LastTransitionTime: e.lastTransitionTime,
+	// 		Reason:             "KubeletHasNoDiskPressure",
+	// 		Message:            "kubelet has no disk pressure",
+	// 	},
+	// 	{
+	// 		Type:               "NetworkUnavailable",
+	// 		Status:             v1.ConditionFalse,
+	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
+	// 		LastTransitionTime: e.lastTransitionTime,
+	// 		Reason:             "RouteCreated",
+	// 		Message:            "RouteController created a route",
+	// 	},
+	// }
+	// nodeConditions = append(nodeConditions, conds...)
 	return nodeConditions
 }
 
