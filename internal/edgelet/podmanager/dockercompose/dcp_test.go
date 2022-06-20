@@ -12,6 +12,8 @@ import (
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/compose/v2/pkg/api"
+	moby "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/sanathkr/go-yaml"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -301,4 +303,45 @@ func Test_getLocalIPAddress(t *testing.T) {
 func Test_getip(t *testing.T) {
 	ip, _ := getOutBoundIP()
 	t.Log(ip)
+}
+
+func Test_log(t *testing.T) {
+	dcp := NewPodManager(config.WithProjectName("compose"))
+	ctx := context.Background()
+	podname := "iperf-exporter-8vc4m"
+	containerName := "iperf3"
+	f := getDefaultFilters(dcp.project)
+	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
+	mcs, err := dcp.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
+		Filters: filters.NewArgs(f...),
+	})
+	if err != nil {
+		return
+	}
+	if len(mcs) == 0 {
+		return
+	}
+	ro, err := dcp.dockerCli.Client().ContainerLogs(ctx, mcs[0].ID, moby.ContainerLogsOptions{
+		//Since:      "2022-06-20 06:00:00",
+		Timestamps: false,
+		Follow:     false,
+		//Tail:       fmt.Sprint(opts.Tail),
+		ShowStdout: true,
+		Details:    true,
+	})
+	if err != nil {
+		t.Log(err)
+		return
+	}
+	data := make([]byte, 256)
+	for {
+		n, err := ro.Read(data)
+		if err != nil {
+			t.Log(err)
+			break
+		}
+		t.Logf("Read %d bytes, :%s", n, string(data))
+		data = data[:]
+	}
+
 }

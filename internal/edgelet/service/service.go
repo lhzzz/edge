@@ -179,6 +179,8 @@ func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetP
 }
 
 func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
+	logrus.Info("GetContainerLogs :", req)
+
 	ro, err := e.pm.GetContainerLogs(stream.Context(), req.Namespace, req.Name, req.ContainerName, req.Opts)
 	if err != nil {
 		return err

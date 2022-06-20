@@ -187,12 +187,12 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 	if len(mcs) == 0 {
 		return nil, errdefs.NotFoundf("%s/%s-%s not found", namespace, podname, containerName)
 	}
-
 	return d.dockerCli.Client().ContainerLogs(ctx, mcs[0].ID, moby.ContainerLogsOptions{
 		Since:      opts.SinceTime,
 		Timestamps: opts.Timestamps,
 		Follow:     opts.Follow,
 		Tail:       fmt.Sprint(opts.Tail),
+		ShowStdout: true,
 	})
 }
 
