@@ -49,6 +49,9 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@master
+    
+    - name: Checkout submodules
+      uses: textbook/git-checkout-submodule-action@master
 
     - name: Set up Go
       uses: actions/setup-go@v3

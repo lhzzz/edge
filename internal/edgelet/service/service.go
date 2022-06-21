@@ -203,6 +203,7 @@ func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Ed
 			break
 		}
 	}
+	logrus.Info("GetContainerLogs Exit...")
 	return nil
 }
 
@@ -337,7 +338,7 @@ func (e *edgelet) nodeConditions() []v1.NodeCondition {
 func (e *edgelet) nodeAddresses() []v1.NodeAddress {
 	return []v1.NodeAddress{
 		{
-			Type:    "InternalIP",
+			Type:    v1.NodeExternalIP,
 			Address: e.localIPAddress,
 		},
 	}
