@@ -9,7 +9,6 @@ import (
 	"edge/pkg/errdefs"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -178,49 +177,67 @@ func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetP
 	return resp, nil
 }
 
-func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
-	logrus.Info("GetContainerLogs :", req)
+// func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
+// 	logrus.Info("GetContainerLogs :", req)
 
-	ctx := stream.Context()
+// 	ctx := stream.Context()
+// 	ro, err := e.pm.GetContainerLogs(ctx, req.Namespace, req.Name, req.ContainerName, req.Opts)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer ro.Close()
+
+// 	isquit := false
+// 	for !isquit {
+// 		select {
+// 		case <-ctx.Done():
+// 			isquit = true
+// 			logrus.Info("GetContainerLogs ctx is done:", ctx.Err())
+// 		default:
+// 			data := make([]byte, 1024)
+// 			n, er := ro.Read(data)
+// 			if n > 0 {
+// 				logrus.Info("send msg :", string(data[:n]))
+// 				ew := stream.SendMsg(&pb.GetContainerLogsResponse{Log: data[:n]})
+// 				if ew != nil {
+// 					isquit = true
+// 					logrus.Info("GetContainerLogs Exit for ew=", ew)
+// 					break
+// 				}
+// 			}
+// 			if er != nil {
+// 				if er == io.EOF {
+// 					err = stream.SendMsg(&pb.GetContainerLogsResponse{Error: pberrEOF})
+// 					if err != nil {
+// 						logrus.Warn("GetContainerLogs send EOF failed err=", err)
+// 					}
+// 				}
+// 				isquit = true
+// 				logrus.Info("GetContainerLogs Exit for er=", er)
+// 				break
+// 			}
+// 		}
+// 	}
+// 	logrus.Info("GetContainerLogs is exit")
+// 	return nil
+// }
+
+func (e *edgelet) GetContainerLogs(ctx context.Context, req *pb.GetContainerLogsRequest) (*pb.GetContainerLogsResponse, error) {
+	logrus.Info("GetContainerLogs :", req)
+	resp := &pb.GetContainerLogsResponse{}
+
 	ro, err := e.pm.GetContainerLogs(ctx, req.Namespace, req.Name, req.ContainerName, req.Opts)
 	if err != nil {
-		return err
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		return resp, err
 	}
-	defer ro.Close()
-
-	isquit := false
-	for !isquit {
-		select {
-		case <-ctx.Done():
-			isquit = true
-			logrus.Info("GetContainerLogs ctx is done:", ctx.Err())
-		default:
-			data := make([]byte, 1024)
-			n, er := ro.Read(data)
-			if n > 0 {
-				logrus.Info("send msg :", string(data[:n]))
-				ew := stream.SendMsg(&pb.GetContainerLogsResponse{Log: data[:n]})
-				if ew != nil {
-					isquit = true
-					logrus.Info("GetContainerLogs Exit for ew=", ew)
-					break
-				}
-			}
-			if er != nil {
-				if er == io.EOF {
-					err = stream.SendMsg(&pb.GetContainerLogsResponse{Error: pberrEOF})
-					if err != nil {
-						logrus.Warn("GetContainerLogs send EOF failed err=", err)
-					}
-				}
-				isquit = true
-				logrus.Info("GetContainerLogs Exit for er=", er)
-				break
-			}
-		}
+	data, err := ioutil.ReadAll(ro)
+	if err != nil {
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+		return resp, err
 	}
-	logrus.Info("GetContainerLogs is exit")
-	return nil
+	resp.Log = data
+	return resp, nil
 }
 
 func (e *edgelet) RunInContainer(ctx context.Context, req *pb.RunInContainerRequest) (*pb.RunInContainerResponse, error) {

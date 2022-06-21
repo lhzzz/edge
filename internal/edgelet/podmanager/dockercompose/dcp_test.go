@@ -341,12 +341,13 @@ func Test_log(t *testing.T) {
 	// }
 	// return
 
-	podname := "iperf-exporter-8vc4m"
-	containerName := "exporter"
+	podname := "capserver-capserver-6xvvd"
+	containerName := "capserver"
 	f := getDefaultFilters(dcp.project)
 	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
 	mcs, err := dcp.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
 		Filters: filters.NewArgs(f...),
+		All:     true,
 	})
 	if err != nil {
 		return
@@ -357,10 +358,11 @@ func Test_log(t *testing.T) {
 	ro, err := dcp.dockerCli.Client().ContainerLogs(ctx, mcs[0].ID, moby.ContainerLogsOptions{
 		//Since:      "2022-06-20 06:00:00",
 		Timestamps: false,
-		Follow:     true,
-		//Tail:       "100",
+		Follow:     false,
+		Tail:       "100",
 		ShowStdout: true,
 		Details:    true,
+		ShowStderr: true,
 	})
 	if err != nil {
 		t.Log(err)
@@ -368,17 +370,19 @@ func Test_log(t *testing.T) {
 	}
 	defer ro.Close()
 
-	data := make([]byte, 1024)
-	for {
-		n, err := ro.Read(data)
-		if n == 0 {
-			break
-		}
-		logrus.Infof("Read %d bytes", n)
-		logrus.Info(string(data[:n]))
-		if err != nil {
-			t.Log(err)
-			break
-		}
-	}
+	// data := make([]byte, 1024)
+	// for {
+	// 	n, err := ro.Read(data)
+	// 	if n == 0 {
+	// 		break
+	// 	}
+	// 	logrus.Infof("Read %d bytes", n)
+	// 	logrus.Info(string(data[:n]))
+	// 	if err != nil {
+	// 		t.Log(err)
+	// 		break
+	// 	}
+	// }
+	data, err := ioutil.ReadAll(ro)
+	t.Log(string(data))
 }

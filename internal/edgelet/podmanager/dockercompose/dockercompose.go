@@ -180,6 +180,7 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
 	mcs, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
 		Filters: filters.NewArgs(f...),
+		All:     true,
 	})
 	if err != nil {
 		return nil, err
@@ -190,9 +191,9 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 
 	mopts := moby.ContainerLogsOptions{
 		ShowStdout: true,
+		ShowStderr: true,
 		Since:      opts.SinceTime,
 		Timestamps: opts.Timestamps,
-		Follow:     opts.Follow,
 		Details:    true,
 	}
 	if opts.Tail > 0 {
