@@ -51,7 +51,7 @@ jobs:
       uses: actions/checkout@master
     
     - name: Checkout submodules
-      uses: textbook/git-checkout-submodule-action@master
+      run: git submodule update --init --recursive
 
     - name: Set up Go
       uses: actions/setup-go@v3
