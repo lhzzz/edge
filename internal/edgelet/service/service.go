@@ -8,8 +8,8 @@ import (
 	"edge/internal/edgelet/podmanager/config"
 	"edge/pkg/errdefs"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	EOF = errors.New("EOF")
+	pberrEOF = &pb.Error{Code: pb.ErrorCode_SERVICE_STREAM_CALL_FINISH}
 )
 
 func NewEdgelet(cloudAddress string) *edgelet {
@@ -181,29 +181,45 @@ func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetP
 func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
 	logrus.Info("GetContainerLogs :", req)
 
-	ro, err := e.pm.GetContainerLogs(stream.Context(), req.Namespace, req.Name, req.ContainerName, req.Opts)
+	ctx := stream.Context()
+	ro, err := e.pm.GetContainerLogs(ctx, req.Namespace, req.Name, req.ContainerName, req.Opts)
 	if err != nil {
 		return err
 	}
 	defer ro.Close()
-	for {
-		var data []byte
-		n, er := ro.Read(data)
-		if n > 0 {
-			ew := stream.Send(&pb.GetContainerLogsResponse{Log: data})
-			if ew != nil {
-				err = ew
+
+	isquit := false
+	for !isquit {
+		select {
+		case <-ctx.Done():
+			isquit = true
+			logrus.Info("GetContainerLogs ctx is done:", ctx.Err())
+		default:
+			data := make([]byte, 1024)
+			n, er := ro.Read(data)
+			if n > 0 {
+				logrus.Info("send msg :", string(data[:n]))
+				ew := stream.SendMsg(&pb.GetContainerLogsResponse{Log: data[:n]})
+				if ew != nil {
+					isquit = true
+					logrus.Info("GetContainerLogs Exit for ew=", ew)
+					break
+				}
+			}
+			if er != nil {
+				if er == io.EOF {
+					err = stream.SendMsg(&pb.GetContainerLogsResponse{Error: pberrEOF})
+					if err != nil {
+						logrus.Warn("GetContainerLogs send EOF failed err=", err)
+					}
+				}
+				isquit = true
+				logrus.Info("GetContainerLogs Exit for er=", er)
 				break
 			}
 		}
-		if er != nil {
-			if er != EOF {
-				err = er
-			}
-			break
-		}
 	}
-	logrus.Info("GetContainerLogs Exit...")
+	logrus.Info("GetContainerLogs is exit")
 	return nil
 }
 
@@ -260,7 +276,7 @@ func (e *edgelet) capacity(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	return v1.ResourceList{
 		"cpu":    resource.MustParse("100"),
 		"memory": resource.MustParse(fmt.Sprintf("%dGi", total)),
-		"pods":   resource.MustParse("30"),
+		"pods":   resource.MustParse("110"),
 	}
 }
 
@@ -272,7 +288,7 @@ func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	return v1.ResourceList{
 		"cpu":    resource.MustParse("100"),
 		"memory": resource.MustParse(fmt.Sprintf("%dGi", usage)),
-		"pods":   resource.MustParse("30"), //TODO:这里要动态修改
+		"pods":   resource.MustParse("110"), //TODO:这里要动态修改
 	}
 }
 

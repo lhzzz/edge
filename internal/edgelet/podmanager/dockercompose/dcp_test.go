@@ -15,6 +15,7 @@ import (
 	moby "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/sanathkr/go-yaml"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -305,11 +306,43 @@ func Test_getip(t *testing.T) {
 	t.Log(ip)
 }
 
+type LogConsumer struct {
+	containerName string
+}
+
+func NewLogConsumer() *LogConsumer {
+	return &LogConsumer{}
+}
+
+func (lg *LogConsumer) Log(service, container, message string) {
+	logrus.Infof("%s/%s:%s", service, container, message)
+}
+
+func (lg *LogConsumer) Status(container, msg string) {
+	logrus.Infof("%s:%s", container, msg)
+}
+
+func (lg *LogConsumer) Register(container string) {
+	lg.containerName = container
+}
+
 func Test_log(t *testing.T) {
 	dcp := NewPodManager(config.WithProjectName("compose"))
 	ctx := context.Background()
+
+	// err := dcp.composeApi.Logs(ctx, dcp.project, NewLogConsumer(), api.LogOptions{
+	// 	Services:   []string{"iperf-exporter-8vc4m.iperf3"},
+	// 	Tail:       "1000",
+	// 	Timestamps: false,
+	// })
+	// if err != nil {
+	// 	t.Log(err)
+	// 	return
+	// }
+	// return
+
 	podname := "iperf-exporter-8vc4m"
-	containerName := "iperf3"
+	containerName := "exporter"
 	f := getDefaultFilters(dcp.project)
 	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
 	mcs, err := dcp.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
@@ -324,8 +357,8 @@ func Test_log(t *testing.T) {
 	ro, err := dcp.dockerCli.Client().ContainerLogs(ctx, mcs[0].ID, moby.ContainerLogsOptions{
 		//Since:      "2022-06-20 06:00:00",
 		Timestamps: false,
-		Follow:     false,
-		//Tail:       fmt.Sprint(opts.Tail),
+		Follow:     true,
+		//Tail:       "100",
 		ShowStdout: true,
 		Details:    true,
 	})
@@ -333,15 +366,19 @@ func Test_log(t *testing.T) {
 		t.Log(err)
 		return
 	}
-	data := make([]byte, 256)
+	defer ro.Close()
+
+	data := make([]byte, 1024)
 	for {
 		n, err := ro.Read(data)
+		if n == 0 {
+			break
+		}
+		logrus.Infof("Read %d bytes", n)
+		logrus.Info(string(data[:n]))
 		if err != nil {
 			t.Log(err)
 			break
 		}
-		t.Logf("Read %d bytes, :%s", n, string(data))
-		data = data[:]
 	}
-
 }

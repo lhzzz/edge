@@ -187,13 +187,18 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 	if len(mcs) == 0 {
 		return nil, errdefs.NotFoundf("%s/%s-%s not found", namespace, podname, containerName)
 	}
-	return d.dockerCli.Client().ContainerLogs(ctx, mcs[0].ID, moby.ContainerLogsOptions{
+
+	mopts := moby.ContainerLogsOptions{
+		ShowStdout: true,
 		Since:      opts.SinceTime,
 		Timestamps: opts.Timestamps,
 		Follow:     opts.Follow,
-		Tail:       fmt.Sprint(opts.Tail),
-		ShowStdout: true,
-	})
+		Details:    true,
+	}
+	if opts.Tail > 0 {
+		mopts.Tail = fmt.Sprint(opts.Tail)
+	}
+	return d.dockerCli.Client().ContainerLogs(ctx, mcs[0].ID, mopts)
 }
 
 func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error) {
@@ -467,6 +472,7 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 		if c.State != string(runningState) {
 			pod.Status.Phase = v1.PodUnknown
 			pod.Status.Reason = c.Status
+			pod.Status.Conditions[1].Status = v1.ConditionFalse
 		}
 		serviceName := c.Labels[api.ServiceLabel]
 		_, podContainerName := parseContainerServiceName(serviceName)
@@ -485,8 +491,11 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 			Name:         ic.Name,
 			Image:        ic.Image,
 			State:        containerStateToK8sContainerState(mobyContainer),
-			Ready:        true,
 			RestartCount: 0,
+			Ready:        true,
+		}
+		if containerStatus.State.Terminated != nil {
+			containerStatus.Ready = false
 		}
 		initStatus = append(initStatus, containerStatus)
 		pod.Status.InitContainerStatuses = initStatus
@@ -498,8 +507,11 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 			Name:         c.Name,
 			Image:        c.Image,
 			State:        containerStateToK8sContainerState(mobyContainer),
-			Ready:        true,
 			RestartCount: 0,
+			Ready:        true,
+		}
+		if containerStatus.State.Terminated != nil {
+			containerStatus.Ready = false
 		}
 		statuses = append(statuses, containerStatus)
 		pod.Status.ContainerStatuses = statuses
@@ -513,9 +525,13 @@ func containerStateToK8sContainerState(container moby.Container) v1.ContainerSta
 	cs := containerState(container.State)
 
 	createAt := metav1.NewTime(time.Unix(container.Created, 0))
-	ret.Running = &v1.ContainerStateRunning{
-		StartedAt: createAt,
+	if cs == runningState {
+		ret.Running = &v1.ContainerStateRunning{
+			StartedAt: createAt,
+		}
+		return ret
 	}
+	//TODO: FIX status.containerStatuses[0].state: Forbidden: may not be transitioned to non-terminated state
 	if cs == removingState || cs == deadState || cs == exitedState {
 		ret.Terminated = &v1.ContainerStateTerminated{
 			Message:   container.Status,

@@ -43,6 +43,6 @@ func Run(cloudAddress, runAddress string) {
 	<-quit
 
 	logrus.Info("Shutting down server...")
-	grpcServer.GracefulStop()
+	grpcServer.Stop()
 	logrus.Info("Server exiting")
 }
