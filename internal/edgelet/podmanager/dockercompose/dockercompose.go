@@ -46,7 +46,7 @@ type containerReason string
 
 const (
 	initErrorReason        containerReason = "Init:Error"
-	initCompletedReason    containerReason = "Completed"
+	completedReason        containerReason = "Completed"
 	crashLoopBackOffReason containerReason = "CrashLoopBackOff"
 	errorReason            containerReason = "Error"
 )
@@ -116,11 +116,8 @@ func (d *dcpPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, er
 }
 
 func (d *dcpPodManager) DeletePod(ctx context.Context, pod *v1.Pod) error {
-	podName := parseK8sPodName(pod)
-	if podName == "" {
-		return errMissingMeta
-	}
-	services := listPodContainerService(pod)
+	pp := NewPodProject(d.project, pod)
+	services := pp.ListServices()
 	return d.composeApi.Down(ctx, d.project, api.DownOptions{
 		Project: &types.Project{
 			Name:     d.project,
@@ -155,7 +152,7 @@ func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (
 		inspects[i] = inspect
 	}
 
-	return containerToK8sPod(inspects...), nil
+	return mobyContainersToK8sPod(inspects...), nil
 }
 
 func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
@@ -182,7 +179,7 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	ret := make([]*v1.Pod, len(podContainers))
 	index := 0
 	for _, cs := range podContainers {
-		ret[index] = containerToK8sPod(cs...)
+		ret[index] = mobyContainersToK8sPod(cs...)
 		index++
 	}
 	return ret, nil
@@ -274,14 +271,12 @@ func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
 }
 
 func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
-	project := d.newDefaultDockerComposeProject()
-	project.Services = k8sContainersToServices(pod, d.project)
-	project.Volumes = k8sVolumeToVolume(pod.Spec.Volumes)
+	project := NewPodProject(d.project, pod).Project()
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
-			Inherit:  true,
-			Recreate: api.RecreateNever,
-			//RecreateDependencies: api.RecreateDiverged,
+			Inherit:              true,
+			Recreate:             api.RecreateDiverged,
+			RecreateDependencies: api.RecreateDiverged,
 		},
 		Start: api.StartOptions{Project: &project},
 	})
@@ -297,58 +292,6 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Po
 	return pod, nil
 }
 
-func (d *dcpPodManager) newDefaultDockerComposeProject() types.Project {
-	return types.Project{Name: d.project}
-}
-
-//init-container依赖于上一个init-container的启动
-//容器依赖于所有init-container的启动
-func k8sContainersToServices(pod *v1.Pod, projectName string) types.Services {
-	services := types.Services{}
-	lastServiceName := ""
-	initServiceNames := []string{}
-	for i, ic := range pod.Spec.InitContainers {
-		svrconf := k8sContainer2ServiceConfig(pod, ic, projectName, true)
-		if i != 0 {
-			svrconf.DependsOn = types.DependsOnConfig{
-				lastServiceName: serviceHealthDependency,
-			}
-		}
-		lastServiceName = svrconf.Name
-		services = append(services, svrconf)
-		initServiceNames = append(initServiceNames, svrconf.Name)
-	}
-	for _, c := range pod.Spec.Containers {
-		svrconf := k8sContainer2ServiceConfig(pod, c, projectName, false)
-		svrconf.DependsOn = types.DependsOnConfig{}
-		for _, isn := range initServiceNames {
-			svrconf.DependsOn[isn] = serviceHealthDependency
-		}
-		services = append(services, svrconf)
-	}
-	return services
-}
-
-func k8sVolumeToVolume(vols []v1.Volume) types.Volumes {
-	volumns := types.Volumes{}
-	for _, v := range vols {
-		volumns[v.Name] = types.VolumeConfig{
-			Name: v.Name,
-			//TODO:? volume的转换
-		}
-	}
-	return volumns
-}
-
-func parseK8sPodName(pod *v1.Pod) (podName string) {
-	podName = pod.ObjectMeta.Name
-	return
-}
-
-func makeContainerServiceName(podName, containerName string) string {
-	return podName + "." + containerName
-}
-
 func parseContainerServiceName(serviceName string) (podName, containerName string) {
 	slice := strings.Split(serviceName, ".")
 	if len(slice) < 2 {
@@ -361,69 +304,6 @@ func parseContainerServiceName(serviceName string) (podName, containerName strin
 	}
 	containerName = slice[i]
 	return
-}
-
-func newDefaultDockerComposeLabels(pod *v1.Pod, project, service string, isInit bool) types.Labels {
-	labels := types.Labels{}
-	labels.Add(api.ProjectLabel, project)
-	labels.Add(api.ServiceLabel, service)
-	labels.Add(api.OneoffLabel, "False")
-	labels.Add(k8sNamespaceLabel, pod.ObjectMeta.Namespace)
-	labels.Add(k8sPodNameLabel, pod.ObjectMeta.Name)
-	jbyte, _ := json.Marshal(pod)
-	labels.Add(k8sPodInfoLabel, string(jbyte))
-	if isInit {
-		labels.Add(k8sInitContainer, "true")
-	}
-	return labels
-}
-
-//pod里面的容器转换成docker-compose的service
-func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project string, isInit bool) types.ServiceConfig {
-	svrconf := types.ServiceConfig{}
-	podName := parseK8sPodName(pod)
-	svrconf.Name = makeContainerServiceName(podName, container.Name)
-	svrconf.Command = append(container.Command, container.Args...)
-	svrconf.Image = container.Image
-	svrconf.Labels = newDefaultDockerComposeLabels(pod, project, svrconf.Name, isInit)
-	svrconf.CustomLabels = types.Labels{}
-	svrconf.Environment = types.MappingWithEquals{}
-	for _, e := range container.Env {
-		env := e
-		svrconf.Environment[env.Name] = &env.Value
-	}
-	//TODO:健康检测的转换处理
-	svrconf.HealthCheck = &types.HealthCheckConfig{}
-	svrconf.PullPolicy = types.PullPolicyIfNotPresent
-	svrconf.Restart = types.RestartPolicyOnFailure + ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
-	svrconf.Scale = 1
-	svrconf.Ports = []types.ServicePortConfig{}
-	//TODO:port转换有问题
-	for _, p := range container.Ports {
-		svrconf.Ports = append(svrconf.Ports, types.ServicePortConfig{
-			Protocol:  string(p.Protocol),
-			Published: fmt.Sprint(p.HostPort),
-			Target:    uint32(p.ContainerPort),
-			HostIP:    p.HostIP,
-		})
-	}
-	//TODO:volumn 的转换处理， configMap/secrets
-	svrconf.Volumes = []types.ServiceVolumeConfig{}
-	//logrus.Info(svrconf)
-	return svrconf
-}
-
-//获取pod下的所有容器的service
-func listPodContainerService(pod *v1.Pod) []types.ServiceConfig {
-	var rets []types.ServiceConfig
-	podName := parseK8sPodName(pod)
-	for _, ic := range pod.Spec.InitContainers {
-		rets = append(rets, types.ServiceConfig{Name: makeContainerServiceName(podName, ic.Name)})
-	}
-	for _, c := range pod.Spec.Containers {
-		rets = append(rets, types.ServiceConfig{Name: makeContainerServiceName(podName, c.Name)})
-	}
-	return rets
 }
 
 func projectFilter(projectName string) filters.KeyValuePair {
@@ -451,7 +331,7 @@ func getDefaultFilters(projectName string, selectedServices ...string) []filters
 }
 
 //重点
-func containerToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
+func mobyContainersToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
 	if len(containers) == 0 {
 		return nil
 	}
@@ -496,7 +376,7 @@ func containerToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
 	var initStatus, statuses []v1.ContainerStatus
 	for _, ic := range pod.Spec.InitContainers {
 		mobyContainer := initContainers[ic.Name]
-		containerStatus := containerToK8sContainerState(ic.Name, mobyContainer, true)
+		containerStatus := mobyContainerToK8sContainerState(ic.Name, mobyContainer, true)
 		if !containerStatus.Ready {
 			pod.Status.Conditions[0].Status = v1.ConditionFalse
 			pod.Status.Conditions[1].Status = v1.ConditionFalse
@@ -507,7 +387,7 @@ func containerToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
 
 	for _, c := range pod.Spec.Containers {
 		mobyContainer := runContainers[c.Name]
-		containerStatus := containerToK8sContainerState(c.Name, mobyContainer, false)
+		containerStatus := mobyContainerToK8sContainerState(c.Name, mobyContainer, false)
 		if !containerStatus.Ready {
 			pod.Status.Conditions[1].Status = v1.ConditionFalse
 		}
@@ -517,7 +397,7 @@ func containerToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
 	return &pod
 }
 
-func containerToK8sContainerState(podContainerName string, container moby.ContainerJSON, isInit bool) v1.ContainerStatus {
+func mobyContainerToK8sContainerState(podContainerName string, container moby.ContainerJSON, isInit bool) v1.ContainerStatus {
 	ret := v1.ContainerStatus{}
 	ret.Name = podContainerName
 	ret.Image = container.Image
@@ -543,7 +423,7 @@ func containerToK8sContainerState(podContainerName string, container moby.Contai
 		}
 		if container.State.ExitCode == 0 {
 			ret.Ready = true
-			ret.State.Terminated.Reason = string(initCompletedReason)
+			ret.State.Terminated.Reason = string(completedReason)
 		} else {
 			ret.State.Terminated.Reason = string(initErrorReason)
 			ret.State.Terminated.Message = container.State.Error
@@ -556,6 +436,9 @@ func containerToK8sContainerState(podContainerName string, container moby.Contai
 		Reason:     string(errorReason),
 		StartedAt:  metav1.NewTime(startTime),
 		FinishedAt: metav1.NewTime(endtime),
+	}
+	if container.State.ExitCode == 0 {
+		terminate.Reason = string(completedReason)
 	}
 
 	if ret.RestartCount >= 3 {
