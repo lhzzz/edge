@@ -292,6 +292,10 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Po
 	return pod, nil
 }
 
+func makeContainerServiceName(podName, containerName string) string {
+	return podName + "." + containerName
+}
+
 func parseContainerServiceName(serviceName string) (podName, containerName string) {
 	slice := strings.Split(serviceName, ".")
 	if len(slice) < 2 {

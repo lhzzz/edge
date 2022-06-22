@@ -28,10 +28,6 @@ func NewPodProject(projectName string, pod *v1.Pod) DockerComposeProject {
 	}
 }
 
-func makeContainerServiceName(podName, containerName string) string {
-	return podName + "." + containerName
-}
-
 func (dcpp *dockerComposeProject) newDockerComposeLabels(service string, isInit bool) types.Labels {
 	labels := types.Labels{}
 	labels.Add(api.ProjectLabel, dcpp.project)
@@ -84,10 +80,11 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Restart = types.RestartPolicyOnFailure + ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = []types.ServicePortConfig{}
-
+	svrconf.Networks["default"] = nil
 	//TODO:port转换有问题
 	for _, p := range container.Ports {
 		svrconf.Ports = append(svrconf.Ports, types.ServicePortConfig{
+			Mode:      "ingress",
 			Protocol:  strings.ToLower(string(p.Protocol)),
 			Published: fmt.Sprint(p.HostPort),
 			Target:    uint32(p.ContainerPort),
@@ -128,7 +125,11 @@ func (dcpp *dockerComposeProject) services() types.Services {
 }
 
 func (dcpp *dockerComposeProject) networks() types.Networks {
-	return types.Networks{}
+	networks := types.Networks{}
+	networks["default"] = types.NetworkConfig{
+		Name: dcpp.project + "_default",
+	}
+	return networks
 }
 
 func (dcpp *dockerComposeProject) configs() types.Configs {

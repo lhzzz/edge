@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compose-spec/compose-go/cli"
 	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/compose/v2/pkg/api"
 	moby "github.com/docker/docker/api/types"
@@ -385,4 +386,25 @@ func Test_log(t *testing.T) {
 	// }
 	data, err := ioutil.ReadAll(ro)
 	t.Log(string(data))
+}
+
+func Test_load(t *testing.T) {
+	path := "/mnt/c/Users/LinHao/go/test/compose/"
+	opts, err := cli.NewProjectOptions([]string{path + "case.yaml"}, cli.WithName("compose"))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	project, err := cli.ProjectFromOptions(opts)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	// data, _ := json.MarshalIndent(project, "", "\t")
+	// t.Log(string(data))
+
+	ym, _ := yaml.Marshal(project)
+	t.Log(string(ym))
 }
