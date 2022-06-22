@@ -38,18 +38,17 @@ const (
 	k8sPodNameLabel   = "k8s-podname"
 	k8sInitContainer  = "k8s-initContainer"
 	always            = "always"
+
+	restartTimes = 5
 )
 
-type containerState string
+type containerReason string
 
 const (
-	pausedState     containerState = "paused"
-	restartingState containerState = "restarting"
-	removingState   containerState = "removing"
-	runningState    containerState = "running"
-	deadState       containerState = "dead"
-	createdState    containerState = "created"
-	exitedState     containerState = "exited"
+	initErrorReason        containerReason = "Init:Error"
+	initCompletedReason    containerReason = "Completed"
+	crashLoopBackOffReason containerReason = "CrashLoopBackOff"
+	errorReason            containerReason = "Error"
 )
 
 var (
@@ -146,11 +145,21 @@ func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (
 	if len(containers) == 0 {
 		return nil, errdefs.NotFoundf("%s/%s not found", namespace, podName)
 	}
-	return containerToK8sPod(containers...), nil
+
+	inspects := make([]moby.ContainerJSON, len(containers))
+	for i, c := range containers {
+		inspect, err := d.dockerCli.Client().ContainerInspect(ctx, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		inspects[i] = inspect
+	}
+
+	return containerToK8sPod(inspects...), nil
 }
 
 func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
-	podContainers := make(map[string][]moby.Container)
+	podContainers := make(map[string][]moby.ContainerJSON)
 	f := getDefaultFilters(d.project)
 	//用docker-compose的api数据被转换，有效信息太少
 	containers, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
@@ -160,11 +169,15 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-	//duplicate
+	//将一个pod下的container分组
 	for _, c := range containers {
 		serivceName := c.Labels[api.ServiceLabel]
 		podName, _ := parseContainerServiceName(serivceName)
-		podContainers[podName] = append(podContainers[podName], c)
+		inspect, err := d.dockerCli.Client().ContainerInspect(ctx, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		podContainers[podName] = append(podContainers[podName], inspect)
 	}
 	ret := make([]*v1.Pod, len(podContainers))
 	index := 0
@@ -382,7 +395,7 @@ func k8sContainer2ServiceConfig(pod *v1.Pod, container v1.Container, project str
 	//TODO:健康检测的转换处理
 	svrconf.HealthCheck = &types.HealthCheckConfig{}
 	svrconf.PullPolicy = types.PullPolicyIfNotPresent
-	svrconf.Restart = types.RestartPolicyOnFailure + ":3" //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
+	svrconf.Restart = types.RestartPolicyOnFailure + ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = []types.ServicePortConfig{}
 	//TODO:port转换有问题
@@ -438,12 +451,12 @@ func getDefaultFilters(projectName string, selectedServices ...string) []filters
 }
 
 //重点
-func containerToK8sPod(containers ...moby.Container) *v1.Pod {
+func containerToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
 	if len(containers) == 0 {
 		return nil
 	}
 	pod := v1.Pod{}
-	podinfo := containers[0].Labels[k8sPodInfoLabel]
+	podinfo := containers[0].Config.Labels[k8sPodInfoLabel]
 	err := json.Unmarshal([]byte(podinfo), &pod)
 	if err != nil {
 		logrus.Error("json unmarshal container pod label failed,err=", err)
@@ -466,86 +479,92 @@ func containerToK8sPod(containers ...moby.Container) *v1.Pod {
 		},
 	}
 
-	initContainers := make(map[string]moby.Container)
-	runContainers := make(map[string]moby.Container)
+	initContainers := make(map[string]moby.ContainerJSON)
+	runContainers := make(map[string]moby.ContainerJSON)
 	for _, c := range containers {
-		logrus.Infof("podName:%v container:%v state:%v status:%v", pod.Name, c.Names, c.State, c.Status)
-		if c.State != string(runningState) {
-			pod.Status.Phase = v1.PodUnknown
-			pod.Status.Reason = c.Status
-			pod.Status.Conditions[1].Status = v1.ConditionFalse
-		}
-		serviceName := c.Labels[api.ServiceLabel]
+		serviceName := c.Config.Labels[api.ServiceLabel]
 		_, podContainerName := parseContainerServiceName(serviceName)
-		if _, ok := c.Labels[k8sInitContainer]; ok {
+		_, isInit := c.Config.Labels[k8sInitContainer]
+		if isInit {
 			initContainers[podContainerName] = c
 		} else {
 			runContainers[podContainerName] = c
 		}
 	}
-	//spec container
 
+	//spec container
 	var initStatus, statuses []v1.ContainerStatus
 	for _, ic := range pod.Spec.InitContainers {
 		mobyContainer := initContainers[ic.Name]
-		containerStatus := v1.ContainerStatus{
-			Name:         ic.Name,
-			Image:        ic.Image,
-			State:        containerStateToK8sContainerState(mobyContainer),
-			RestartCount: 0,
-			Ready:        true,
-		}
-		if containerStatus.State.Terminated != nil {
-			containerStatus.Ready = false
+		containerStatus := containerToK8sContainerState(ic.Name, mobyContainer, true)
+		if !containerStatus.Ready {
+			pod.Status.Conditions[0].Status = v1.ConditionFalse
+			pod.Status.Conditions[1].Status = v1.ConditionFalse
 		}
 		initStatus = append(initStatus, containerStatus)
-		pod.Status.InitContainerStatuses = initStatus
 	}
+	pod.Status.InitContainerStatuses = initStatus
 
 	for _, c := range pod.Spec.Containers {
 		mobyContainer := runContainers[c.Name]
-		containerStatus := v1.ContainerStatus{
-			Name:         c.Name,
-			Image:        c.Image,
-			State:        containerStateToK8sContainerState(mobyContainer),
-			RestartCount: 0,
-			Ready:        true,
-		}
-		if containerStatus.State.Terminated != nil {
-			containerStatus.Ready = false
+		containerStatus := containerToK8sContainerState(c.Name, mobyContainer, false)
+		if !containerStatus.Ready {
+			pod.Status.Conditions[1].Status = v1.ConditionFalse
 		}
 		statuses = append(statuses, containerStatus)
-		pod.Status.ContainerStatuses = statuses
 	}
-	logrus.Infof("podname:%v status:%v", pod.Name, pod.Status.Phase)
+	pod.Status.ContainerStatuses = statuses
 	return &pod
 }
 
-func containerStateToK8sContainerState(container moby.Container) v1.ContainerState {
-	ret := v1.ContainerState{}
-	cs := containerState(container.State)
+func containerToK8sContainerState(podContainerName string, container moby.ContainerJSON, isInit bool) v1.ContainerStatus {
+	ret := v1.ContainerStatus{}
+	ret.Name = podContainerName
+	ret.Image = container.Image
+	ret.RestartCount = int32(container.RestartCount)
+	ret.Ready = false
+	createTime, _ := time.Parse(time.RFC3339Nano, container.Created)
+	createAt := metav1.NewTime(createTime)
+	if container.State.Running {
+		ret.Ready = true
+		ret.State.Running = &v1.ContainerStateRunning{
+			StartedAt: createAt,
+		}
+		return ret
+	}
 
-	createAt := metav1.NewTime(time.Unix(container.Created, 0))
-	if cs == runningState {
-		ret.Running = &v1.ContainerStateRunning{
-			StartedAt: createAt,
+	startTime, _ := time.Parse(time.RFC3339Nano, container.State.StartedAt)
+	endtime, _ := time.Parse(time.RFC3339Nano, container.State.FinishedAt)
+	if isInit {
+		ret.State.Terminated = &v1.ContainerStateTerminated{
+			ExitCode:   int32(container.State.ExitCode),
+			StartedAt:  metav1.NewTime(startTime),
+			FinishedAt: metav1.NewTime(endtime),
+		}
+		if container.State.ExitCode == 0 {
+			ret.Ready = true
+			ret.State.Terminated.Reason = string(initCompletedReason)
+		} else {
+			ret.State.Terminated.Reason = string(initErrorReason)
+			ret.State.Terminated.Message = container.State.Error
 		}
 		return ret
 	}
-	//TODO: FIX status.containerStatuses[0].state: Forbidden: may not be transitioned to non-terminated state
-	if cs == removingState || cs == deadState || cs == exitedState {
-		ret.Terminated = &v1.ContainerStateTerminated{
-			Message:   container.Status,
-			Reason:    container.State,
-			StartedAt: createAt,
-		}
-		return ret
+
+	terminate := &v1.ContainerStateTerminated{
+		ExitCode:   int32(container.State.ExitCode),
+		Reason:     string(errorReason),
+		StartedAt:  metav1.NewTime(startTime),
+		FinishedAt: metav1.NewTime(endtime),
 	}
-	if cs == pausedState {
-		ret.Waiting = &v1.ContainerStateWaiting{
-			Message: container.Status,
+
+	if ret.RestartCount >= 3 {
+		ret.State.Waiting = &v1.ContainerStateWaiting{
+			Reason: string(crashLoopBackOffReason),
 		}
-		return ret
+		ret.LastTerminationState.Terminated = terminate
+	} else {
+		ret.State.Terminated = terminate
 	}
 	return ret
 }
