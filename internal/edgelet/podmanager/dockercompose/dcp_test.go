@@ -328,7 +328,7 @@ func (lg *LogConsumer) Register(container string) {
 }
 
 func Test_log(t *testing.T) {
-	dcp := NewPodManager(config.WithProjectName("compose"))
+	dcp := NewPodManager(config.WithProjectName("edge"))
 	ctx := context.Background()
 
 	// err := dcp.composeApi.Logs(ctx, dcp.project, NewLogConsumer(), api.LogOptions{
@@ -342,8 +342,8 @@ func Test_log(t *testing.T) {
 	// }
 	// return
 
-	podname := "capserver-capserver-6xvvd"
-	containerName := "capserver"
+	podname := "iperf-exporter-8vc4m"
+	containerName := "exporter"
 	f := getDefaultFilters(dcp.project)
 	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
 	mcs, err := dcp.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
@@ -360,7 +360,7 @@ func Test_log(t *testing.T) {
 		//Since:      "2022-06-20 06:00:00",
 		Timestamps: false,
 		Follow:     false,
-		Tail:       "100",
+		//Tail:       "1000",
 		ShowStdout: true,
 		Details:    true,
 		ShowStderr: true,
@@ -423,4 +423,15 @@ func Test_load(t *testing.T) {
 
 	// n, err := f.Write(ym)
 	// t.Log(n, err)
+}
+
+func Test_readlog(t *testing.T) {
+	file := "/var/lib/docker/containers/2c7e3fe780e9c9a3078fdf0b0a8d16ab99dff97134cd21a97fd8c26d4aa95ed3/2c7e3fe780e9c9a3078fdf0b0a8d16ab99dff97134cd21a97fd8c26d4aa95ed3-json.log"
+	f, err := os.OpenFile(file, os.O_RDONLY, 0666)
+	if err != nil {
+		t.Log(err)
+		return
+	}
+	defer f.Close()
+
 }

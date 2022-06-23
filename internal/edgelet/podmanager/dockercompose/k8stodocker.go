@@ -149,6 +149,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Ports = dcpp.toPort(container)
 	//svrconf.Networks = map[string]*types.ServiceNetworkConfig{dcpp.project: nil}
 	svrconf.Volumes = dcpp.toVolumes(container)
+	svrconf.Tty = true
 	return svrconf
 }
 

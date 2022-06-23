@@ -1,6 +1,7 @@
 package config
 
 const (
+	defaultProject     = "edge"
 	defaultProjectPath = "/etc/docker-compose/"
 )
 
@@ -14,7 +15,10 @@ type Option interface {
 }
 
 func DefaultConfig() Config {
-	return Config{}
+	return Config{
+		Project:     defaultProject,
+		ProjectPath: defaultProjectPath + defaultProject,
+	}
 }
 
 type funcConfigOption struct {
@@ -34,6 +38,6 @@ func newFuncConfigOption(f func(c *Config)) *funcConfigOption {
 func WithProjectName(project string) Option {
 	return newFuncConfigOption(func(c *Config) {
 		c.Project = project
-		c.ProjectPath = defaultProjectPath + project + "/"
+		c.ProjectPath = defaultProjectPath + project
 	})
 }
