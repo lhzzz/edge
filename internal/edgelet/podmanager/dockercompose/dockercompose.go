@@ -66,11 +66,12 @@ var (
 )
 
 type dcpPodManager struct {
-	composeApi api.Service
-	dockerCli  command.Cli
-	project    string
-	podEvents  map[string]struct{}
-	rwmutex    sync.RWMutex
+	composeApi  api.Service
+	dockerCli   command.Cli
+	project     string
+	projectPath string
+	podEvents   map[string]struct{}
+	eventMutex  sync.RWMutex
 }
 
 //Docker Compose版本必须要在V2.0 以上
@@ -91,19 +92,43 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 	dockerCli.Initialize(options)
 	composeAPI := compose.NewComposeService(dockerCli)
 	dcp := &dcpPodManager{
-		dockerCli:  dockerCli,
-		composeApi: composeAPI,
-		project:    conf.Project,
-		podEvents:  map[string]struct{}{},
+		dockerCli:   dockerCli,
+		composeApi:  composeAPI,
+		project:     conf.Project,
+		projectPath: conf.ProjectPath,
+		podEvents:   map[string]struct{}{},
 	}
 	go dcp.handleEvent(func(event api.Event) error {
-		dcp.rwmutex.Lock()
+		dcp.eventMutex.Lock()
 		podName, _ := parseContainerServiceName(event.Service)
 		dcp.podEvents[podName] = struct{}{}
-		dcp.rwmutex.Unlock()
+		dcp.eventMutex.Unlock()
 		return nil
 	})
+	dcp.Initialize()
 	return dcp
+}
+
+func (d *dcpPodManager) Initialize() {
+	ctx := context.TODO()
+	netsrcs, err := d.dockerCli.Client().NetworkList(ctx, moby.NetworkListOptions{
+		Filters: filters.NewArgs(projectFilter(d.project)),
+	})
+	if err != nil {
+		logrus.Error("listnetwork network failed in initial", err)
+		return
+	}
+	if len(netsrcs) == 0 {
+		project := &types.Project{
+			Name:     d.project,
+			Networks: types.Networks{d.project: types.NetworkConfig{Name: d.project}},
+		}
+		err := d.composeApi.Up(ctx, project, api.UpOptions{Start: api.StartOptions{Project: project}})
+		if err != nil {
+			logrus.Error("up network failed in initial", err)
+			return
+		}
+	}
 }
 
 //将k8s的pod转换为docker compose中的
@@ -116,8 +141,8 @@ func (d *dcpPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, er
 }
 
 func (d *dcpPodManager) DeletePod(ctx context.Context, pod *v1.Pod) error {
-	pp := NewPodProject(d.project, pod)
-	services := pp.ListServices()
+	pp := NewPodProject(d.project, d.projectPath, pod)
+	services := pp.ServiceNames()
 	return d.composeApi.Down(ctx, d.project, api.DownOptions{
 		Project: &types.Project{
 			Name:     d.project,
@@ -215,12 +240,12 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error) {
 	var podNames []string
 	var pods []*v1.Pod
-	d.rwmutex.Lock()
+	d.eventMutex.Lock()
 	for podName := range d.podEvents {
 		podNames = append(podNames, podName)
 		delete(d.podEvents, podName)
 	}
-	d.rwmutex.Unlock()
+	d.eventMutex.Unlock()
 
 	for _, podName := range podNames {
 		pod, err := d.GetPod(ctx, "", podName)
@@ -271,12 +296,14 @@ func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
 }
 
 func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
-	project := NewPodProject(d.project, pod).Project()
+	project := NewPodProject(d.project, d.projectPath, pod).Project()
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
-			Inherit:              true,
-			Recreate:             api.RecreateDiverged,
-			RecreateDependencies: api.RecreateDiverged,
+			Inherit: true,
+			// Recreate:             api.RecreateDiverged,
+			// RecreateDependencies: api.RecreateDiverged,
+			Recreate:      api.RecreateForce,
+			IgnoreOrphans: true,
 		},
 		Start: api.StartOptions{Project: &project},
 	})

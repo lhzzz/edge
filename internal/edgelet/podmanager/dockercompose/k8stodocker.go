@@ -12,19 +12,21 @@ import (
 )
 
 type dockerComposeProject struct {
-	pod     *v1.Pod
-	project string
+	pod         *v1.Pod
+	project     string
+	projectPath string
 }
 
 type DockerComposeProject interface {
 	Project() types.Project
-	ListServices() []types.ServiceConfig
+	ServiceNames() []types.ServiceConfig
 }
 
-func NewPodProject(projectName string, pod *v1.Pod) DockerComposeProject {
+func NewPodProject(projectName, projectPath string, pod *v1.Pod) DockerComposeProject {
 	return &dockerComposeProject{
-		pod:     pod,
-		project: projectName,
+		pod:         pod,
+		project:     projectName,
+		projectPath: projectPath,
 	}
 }
 
@@ -43,12 +45,37 @@ func (dcpp *dockerComposeProject) newDockerComposeLabels(service string, isInit 
 	return labels
 }
 
+//TODO:volumn 的sourcePath转换处理,configMap/secrets
+func (dcpp *dockerComposeProject) genSourcePath(mountVolumeName string) string {
+	var index int = 0
+	for i, vo := range dcpp.pod.Spec.Volumes {
+		if vo.Name == mountVolumeName {
+			index = i
+			break
+		}
+	}
+	vo := dcpp.pod.Spec.Volumes[index]
+	if vo.HostPath != nil {
+		return vo.HostPath.Path
+	}
+	if vo.ConfigMap != nil {
+		logrus.Warn("Not support ConfigMap")
+		return ""
+	}
+	if vo.Secret != nil {
+		logrus.Warn("Not support Secret")
+		return ""
+	}
+	//now not support configmap/secrets
+	return ""
+}
+
+//TODO:volumn 的转换处理,configMap/secrets
 func (dcpp *dockerComposeProject) volumes() types.Volumes {
 	volumns := types.Volumes{}
 	for _, v := range dcpp.pod.Spec.Volumes {
 		volumns[v.Name] = types.VolumeConfig{
 			Name: v.Name,
-			//TODO:? volume的转换
 		}
 	}
 	return volumns
@@ -60,6 +87,51 @@ func (dcpp *dockerComposeProject) toHealthCheck(container v1.Container) *types.H
 	return nil
 }
 
+//status-host ip / podip 这些env的处理
+func (dcpp *dockerComposeProject) toEnv(container v1.Container) types.MappingWithEquals {
+	envs := types.MappingWithEquals{}
+	for _, e := range container.Env {
+		env := e
+		envs[env.Name] = &env.Value
+	}
+	return envs
+}
+
+func (dcpp *dockerComposeProject) toVolumes(container v1.Container) []types.ServiceVolumeConfig {
+	vs := []types.ServiceVolumeConfig{}
+	for _, v := range container.VolumeMounts {
+		source := dcpp.genSourcePath(v.Name)
+		if source == "" {
+			continue
+		}
+		volume := types.ServiceVolumeConfig{
+			Type:   types.VolumeTypeBind,
+			Source: source,
+			Target: v.MountPath,
+			Bind: &types.ServiceVolumeBind{
+				CreateHostPath: true,
+			},
+		}
+		vs = append(vs, volume)
+	}
+	return vs
+}
+
+//TODO:port转换有问题
+func (dcpp *dockerComposeProject) toPort(container v1.Container) []types.ServicePortConfig {
+	var ports []types.ServicePortConfig
+	for _, p := range container.Ports {
+		ports = append(ports, types.ServicePortConfig{
+			Mode:      "ingress",
+			Protocol:  strings.ToLower(string(p.Protocol)),
+			Published: fmt.Sprint(p.HostPort),
+			Target:    uint32(p.ContainerPort),
+		})
+	}
+	logrus.Info("ports:", ports)
+	return ports
+}
+
 //pod里面的容器转换成docker-compose的service
 func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool) types.ServiceConfig {
 	svrconf := types.ServiceConfig{}
@@ -69,30 +141,14 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Image = container.Image
 	svrconf.Labels = dcpp.newDockerComposeLabels(svrconf.Name, isInit)
 	svrconf.CustomLabels = types.Labels{}
-	svrconf.Environment = types.MappingWithEquals{}
-	for _, e := range container.Env {
-		env := e
-		svrconf.Environment[env.Name] = &env.Value
-	}
-
+	svrconf.Environment = dcpp.toEnv(container)
 	svrconf.HealthCheck = dcpp.toHealthCheck(container)
 	svrconf.PullPolicy = types.PullPolicyIfNotPresent
 	svrconf.Restart = types.RestartPolicyOnFailure + ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
-	svrconf.Ports = []types.ServicePortConfig{}
-	svrconf.Networks["default"] = nil
-	//TODO:port转换有问题
-	for _, p := range container.Ports {
-		svrconf.Ports = append(svrconf.Ports, types.ServicePortConfig{
-			Mode:      "ingress",
-			Protocol:  strings.ToLower(string(p.Protocol)),
-			Published: fmt.Sprint(p.HostPort),
-			Target:    uint32(p.ContainerPort),
-		})
-	}
-	logrus.Info("ports:", svrconf.Ports)
-	//TODO:volumn 的转换处理， configMap/secrets
-	svrconf.Volumes = []types.ServiceVolumeConfig{}
+	svrconf.Ports = dcpp.toPort(container)
+	//svrconf.Networks = map[string]*types.ServiceNetworkConfig{dcpp.project: nil}
+	svrconf.Volumes = dcpp.toVolumes(container)
 	return svrconf
 }
 
@@ -126,8 +182,8 @@ func (dcpp *dockerComposeProject) services() types.Services {
 
 func (dcpp *dockerComposeProject) networks() types.Networks {
 	networks := types.Networks{}
-	networks["default"] = types.NetworkConfig{
-		Name: dcpp.project + "_default",
+	networks[dcpp.project] = types.NetworkConfig{
+		Name: dcpp.project,
 	}
 	return networks
 }
@@ -139,14 +195,14 @@ func (dcpp *dockerComposeProject) configs() types.Configs {
 func (dcpp *dockerComposeProject) Project() types.Project {
 	project := types.Project{Name: dcpp.project}
 	project.Services = dcpp.services()
-	project.Volumes = dcpp.volumes()
-	project.Networks = dcpp.networks()
-	project.Configs = dcpp.configs()
+	//project.Volumes = dcpp.volumes()
+	//project.Networks = dcpp.networks()
+	//project.Configs = dcpp.configs()
 	return project
 }
 
 //获取pod下的所有容器的service
-func (dcpp *dockerComposeProject) ListServices() []types.ServiceConfig {
+func (dcpp *dockerComposeProject) ServiceNames() []types.ServiceConfig {
 	var rets []types.ServiceConfig
 	podName := dcpp.pod.Name
 	for _, ic := range dcpp.pod.Spec.InitContainers {
