@@ -5,6 +5,7 @@ import (
 	"context"
 	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/podmanager"
+	"edge/internal/edgelet/podmanager/config"
 	"edge/pkg/errdefs"
 	"encoding/json"
 	"fmt"
@@ -50,7 +51,7 @@ func NewEdgelet(cloudAddress string) *edgelet {
 	return &edgelet{
 		cloudAddress:   cloudAddress,
 		localIPAddress: localaddress,
-		pm:             podmanager.New(),
+		pm:             podmanager.New(config.WithIPAddress(localaddress)),
 		kernalVersion:  kernalversion,
 		osiImage:       platform,
 	}

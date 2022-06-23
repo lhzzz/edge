@@ -66,12 +66,11 @@ var (
 )
 
 type dcpPodManager struct {
-	composeApi  api.Service
-	dockerCli   command.Cli
-	project     string
-	projectPath string
-	podEvents   map[string]struct{}
-	eventMutex  sync.RWMutex
+	pmconf.Config
+	composeApi api.Service
+	dockerCli  command.Cli
+	podEvents  map[string]struct{}
+	eventMutex sync.RWMutex
 }
 
 //Docker Compose版本必须要在V2.0 以上
@@ -92,11 +91,10 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 	dockerCli.Initialize(options)
 	composeAPI := compose.NewComposeService(dockerCli)
 	dcp := &dcpPodManager{
-		dockerCli:   dockerCli,
-		composeApi:  composeAPI,
-		project:     conf.Project,
-		projectPath: conf.ProjectPath,
-		podEvents:   map[string]struct{}{},
+		dockerCli:  dockerCli,
+		composeApi: composeAPI,
+		Config:     conf,
+		podEvents:  map[string]struct{}{},
 	}
 	go dcp.handleEvent(func(event api.Event) error {
 		dcp.eventMutex.Lock()
@@ -112,7 +110,7 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 func (d *dcpPodManager) Initialize() {
 	ctx := context.TODO()
 	netsrcs, err := d.dockerCli.Client().NetworkList(ctx, moby.NetworkListOptions{
-		Filters: filters.NewArgs(projectFilter(d.project)),
+		Filters: filters.NewArgs(projectFilter(d.Project)),
 	})
 	if err != nil {
 		logrus.Error("listnetwork network failed in initial", err)
@@ -120,8 +118,8 @@ func (d *dcpPodManager) Initialize() {
 	}
 	if len(netsrcs) == 0 {
 		project := &types.Project{
-			Name:     d.project,
-			Networks: types.Networks{d.project: types.NetworkConfig{Name: d.project}},
+			Name:     d.Project,
+			Networks: types.Networks{d.Project: types.NetworkConfig{Name: d.Project}},
 		}
 		err := d.composeApi.Up(ctx, project, api.UpOptions{Start: api.StartOptions{Project: project}})
 		if err != nil {
@@ -141,18 +139,18 @@ func (d *dcpPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, er
 }
 
 func (d *dcpPodManager) DeletePod(ctx context.Context, pod *v1.Pod) error {
-	pp := NewPodProject(d.project, d.projectPath, pod)
+	pp := NewPodProject(d.Project, d.ProjectPath, pod)
 	services := pp.ServiceNames()
-	return d.composeApi.Down(ctx, d.project, api.DownOptions{
+	return d.composeApi.Down(ctx, d.Project, api.DownOptions{
 		Project: &types.Project{
-			Name:     d.project,
+			Name:     d.Project,
 			Services: services,
 		},
 	})
 }
 
 func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (*v1.Pod, error) {
-	f := getDefaultFilters(d.project)
+	f := getDefaultFilters(d.Project)
 	if len(namespace) > 0 {
 		f = append(f, namespaceFilter(namespace))
 	}
@@ -177,12 +175,12 @@ func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (
 		inspects[i] = inspect
 	}
 
-	return mobyContainersToK8sPod(inspects...), nil
+	return d.mobyContainersToK8sPod(inspects...), nil
 }
 
 func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	podContainers := make(map[string][]moby.ContainerJSON)
-	f := getDefaultFilters(d.project)
+	f := getDefaultFilters(d.Project)
 	//用docker-compose的api数据被转换，有效信息太少
 	containers, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
 		Filters: filters.NewArgs(f...),
@@ -204,14 +202,14 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	ret := make([]*v1.Pod, len(podContainers))
 	index := 0
 	for _, cs := range podContainers {
-		ret[index] = mobyContainersToK8sPod(cs...)
+		ret[index] = d.mobyContainersToK8sPod(cs...)
 		index++
 	}
 	return ret, nil
 }
 
 func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error) {
-	f := getDefaultFilters(d.project)
+	f := getDefaultFilters(d.Project)
 	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
 	mcs, err := d.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
 		Filters: filters.NewArgs(f...),
@@ -259,7 +257,7 @@ func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, erro
 
 func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
 	eventCh, errCh := d.dockerCli.Client().Events(context.Background(), moby.EventsOptions{
-		Filters: filters.NewArgs(projectFilter(d.project)),
+		Filters: filters.NewArgs(projectFilter(d.Project)),
 	})
 	for {
 		select {
@@ -296,7 +294,8 @@ func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
 }
 
 func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
-	project := NewPodProject(d.project, d.projectPath, pod).Project()
+	logrus.Info("podIp:", pod.Status.PodIP, pod.Status.PodIPs)
+	project := NewPodProject(d.Project, d.ProjectPath, pod).Project()
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
 			Inherit: true,
@@ -362,7 +361,7 @@ func getDefaultFilters(projectName string, selectedServices ...string) []filters
 }
 
 //重点
-func mobyContainersToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
+func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
 	if len(containers) == 0 {
 		return nil
 	}
@@ -375,6 +374,7 @@ func mobyContainersToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
 	}
 	pod.Status.Phase = v1.PodRunning
 	pod.Status.Reason = ""
+	pod.Status.HostIP = d.IPAddress
 	pod.Status.Conditions = []v1.PodCondition{
 		{
 			Type:   v1.PodInitialized,

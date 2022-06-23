@@ -8,6 +8,7 @@ const (
 type Config struct {
 	Project     string //docker-compose need Project
 	ProjectPath string
+	IPAddress   string
 }
 
 type Option interface {
@@ -39,5 +40,11 @@ func WithProjectName(project string) Option {
 	return newFuncConfigOption(func(c *Config) {
 		c.Project = project
 		c.ProjectPath = defaultProjectPath + project
+	})
+}
+
+func WithIPAddress(address string) Option {
+	return newFuncConfigOption(func(c *Config) {
+		c.IPAddress = address
 	})
 }
