@@ -15,17 +15,18 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-func Run(cloudAddress, runAddress string) {
+func Run(runAddress string) {
 
 	common.InitLogger()
 
 	grpcServer := grpc.NewServer()
-	edgelet := service.NewEdgelet(cloudAddress)
+	edgelet := service.NewEdgelet()
 	//健康检测
 	health := health.NewServer()
 	health.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	healthpb.RegisterHealthServer(grpcServer, health)
 	pb.RegisterEdgeletServer(grpcServer, edgelet)
+	pb.RegisterEdgeadmServer(grpcServer, edgelet)
 
 	listen, err := net.Listen("tcp", runAddress)
 	if err != nil {

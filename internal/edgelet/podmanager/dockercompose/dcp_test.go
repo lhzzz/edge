@@ -344,7 +344,7 @@ func Test_log(t *testing.T) {
 
 	podname := "iperf-exporter-8vc4m"
 	containerName := "exporter"
-	f := getDefaultFilters(dcp.project)
+	f := getDefaultFilters(dcp.Project)
 	f = append(f, serviceFilter(makeContainerServiceName(podname, containerName)))
 	mcs, err := dcp.dockerCli.Client().ContainerList(ctx, moby.ContainerListOptions{
 		Filters: filters.NewArgs(f...),

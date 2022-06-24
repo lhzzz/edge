@@ -14,7 +14,7 @@ import (
 
 var (
 	edgectlConf = cmd.EdgeCtlConfig{
-		EdgeletAddress: ":50051",
+		EdgeletAddress: ":10250",
 	}
 )
 

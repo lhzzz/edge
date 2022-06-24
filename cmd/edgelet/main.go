@@ -5,10 +5,9 @@ import (
 )
 
 const (
-	cloudAddress = "http://150.158.25.86"
-	runAddress   = ":50051"
+	runAddress = ":10250"
 )
 
 func main() {
-	edgelet.Run(cloudAddress, runAddress)
+	edgelet.Run(runAddress)
 }

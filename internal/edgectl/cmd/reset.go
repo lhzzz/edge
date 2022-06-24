@@ -57,7 +57,7 @@ func resetRunner(edgeletAddress string, opt *resetOptions) error {
 		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
 		return err
 	}
-	client := pb.NewEdgeletClient(conn)
+	client := pb.NewEdgeadmClient(conn)
 	resp, err := client.Reset(context.Background(), &pb.ResetRequest{
 		NodeName: opt.nodeName,
 	})

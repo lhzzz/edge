@@ -129,7 +129,7 @@ func joinRunner(edgeletAddress string, opt *joinOptions) error {
 		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
 		return err
 	}
-	client := pb.NewEdgeletClient(conn)
+	client := pb.NewEdgeadmClient(conn)
 	resp, err := client.Join(context.Background(), &pb.JoinRequest{
 		NodeName:     opt.nodeName,
 		Token:        opt.token,
