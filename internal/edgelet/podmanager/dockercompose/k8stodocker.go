@@ -46,28 +46,32 @@ func (dcpp *dockerComposeProject) newDockerComposeLabels(service string, isInit 
 }
 
 //TODO:volumn 的sourcePath转换处理,configMap/secrets
-func (dcpp *dockerComposeProject) genSourcePath(mountVolumeName string) string {
+func (dcpp *dockerComposeProject) genSourcePath(mount v1.VolumeMount) string {
 	var index int = 0
 	for i, vo := range dcpp.pod.Spec.Volumes {
-		if vo.Name == mountVolumeName {
+		if vo.Name == mount.Name {
 			index = i
 			break
 		}
 	}
 	vo := dcpp.pod.Spec.Volumes[index]
+	path := ""
 	if vo.HostPath != nil {
-		return vo.HostPath.Path
+		path = vo.HostPath.Path
 	}
 	if vo.ConfigMap != nil {
-		return filepath.Join(dcpp.config.ConfigMapRoot(), dcpp.pod.Namespace, vo.Name)
+		path = filepath.Join(dcpp.config.ConfigMapRoot(), dcpp.pod.Namespace, vo.Name)
 	}
 	if vo.Secret != nil {
-		return filepath.Join(dcpp.config.SecretRoot(), dcpp.pod.Namespace, vo.Name)
+		path = filepath.Join(dcpp.config.SecretRoot(), dcpp.pod.Namespace, vo.Name)
 	}
 	if vo.EmptyDir != nil {
-		return filepath.Join(dcpp.config.EmptyDirRoot(), vo.Name)
+		path = filepath.Join(dcpp.config.EmptyDirRoot(), vo.Name)
 	}
-	return ""
+	if mount.SubPath != "" {
+		path = filepath.Join(path, mount.SubPath)
+	}
+	return path
 }
 
 //TODO:volumn 的转换处理,configMap/secrets
@@ -100,7 +104,7 @@ func (dcpp *dockerComposeProject) toEnv(container v1.Container) types.MappingWit
 func (dcpp *dockerComposeProject) toVolumes(container v1.Container) []types.ServiceVolumeConfig {
 	vs := []types.ServiceVolumeConfig{}
 	for _, v := range container.VolumeMounts {
-		source := dcpp.genSourcePath(v.Name)
+		source := dcpp.genSourcePath(v)
 		if source == "" {
 			continue
 		}
