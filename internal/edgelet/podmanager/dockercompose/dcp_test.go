@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -434,4 +435,9 @@ func Test_readlog(t *testing.T) {
 	}
 	defer f.Close()
 
+}
+
+func Test_slice(t *testing.T) {
+	path := filepath.Join("/etc", "host")
+	t.Log(path)
 }

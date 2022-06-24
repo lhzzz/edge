@@ -29,14 +29,11 @@ type edgelet struct {
 	lastTransitionTime metav1.Time
 	localIPAddress     string
 	kernalVersion      string
-	osiImage           string
+	OSIImage           string
 }
 
 const (
 	GiB = 1024 * 1024 * 1024
-
-	registryUrlFmt = "%s/edge/registry/node"
-	logoutUrlFmt   = "%s/edge/registry/node?name=%s"
 )
 
 var (
@@ -49,10 +46,21 @@ func NewEdgelet() *edgelet {
 	platform, _, _, _ := host.PlatformInformation()
 	return &edgelet{
 		kernalVersion:  kernalversion,
-		osiImage:       platform,
+		OSIImage:       platform,
 		localIPAddress: localaddress,
 		pm:             podmanager.New(config.WithIPAddress(localaddress)),
 	}
+}
+
+func (e *edgelet) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
+	logrus.Info("CreateVolume")
+	resp := &pb.CreateVolumeResponse{}
+	err := e.pm.CreateVolume(ctx, req)
+	if err != nil {
+		logrus.Error("CreateVolume failed, err=", err)
+		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
+	}
+	return resp, nil
 }
 
 func (e *edgelet) CreatePod(ctx context.Context, req *pb.CreatePodRequest) (*pb.CreatePodResponse, error) {
@@ -220,7 +228,7 @@ func (e *edgelet) configNode() *v1.Node {
 				OperatingSystem:         e.operatingSystem(),
 				Architecture:            e.architecture(),
 				KernelVersion:           e.kernalVersion,
-				OSImage:                 e.osiImage,
+				OSImage:                 e.OSIImage,
 				ContainerRuntimeVersion: "",
 			},
 		},

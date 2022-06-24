@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -129,6 +130,81 @@ func (d *dcpPodManager) Initialize() {
 	}
 }
 
+func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) error {
+	for _, v := range req.Vols {
+		switch vol := v.Volumn.(type) {
+		case *pb.EdgeVolume_EmptyDir:
+			path := filepath.Join(d.EmptyDirRoot(), v.Name)
+			if pathExists(path) {
+				continue
+			}
+			err := os.MkdirAll(path, 0755)
+			if err != nil {
+				return fmt.Errorf("mkdir emptydir failed,err=%v", err)
+			}
+		case *pb.EdgeVolume_HostPath:
+			path := vol.HostPath.Path
+			if pathExists(path) {
+				continue
+			}
+			hostType := v1.HostPathType(vol.HostPath.HostType)
+			if hostType == v1.HostPathDirectory || hostType == v1.HostPathDirectoryOrCreate {
+				err := os.MkdirAll(path, 0755)
+				if err != nil {
+					return fmt.Errorf("mkdir hostPath failed,err=%v", err)
+				}
+			} else if hostType == v1.HostPathFile || hostType == v1.HostPathFileOrCreate {
+				f, err := os.Create(path)
+				if err != nil {
+					return fmt.Errorf("mkdir hostPath failed,err=%v", err)
+				}
+				f.Close()
+			}
+		case *pb.EdgeVolume_ConfigMap:
+			dirpath := filepath.Join(d.ConfigMapRoot(), vol.ConfigMap.Namespace, v.Name)
+			if err := os.MkdirAll(dirpath, 0755); err != nil {
+				return fmt.Errorf("mkdir configPath %s failed, err=%v", dirpath, err)
+			}
+			for name, data := range vol.ConfigMap.Items {
+				path := filepath.Join(dirpath, name)
+				if pathExists(path) {
+					continue
+				}
+				f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
+				if err != nil {
+					return fmt.Errorf("create configmap failed,err=%v", err)
+				}
+				_, err = f.WriteString(data)
+				if err != nil {
+					return fmt.Errorf("write configmap %s failed,err=%v", name, err)
+				}
+				f.Close()
+			}
+		case *pb.EdgeVolume_Secret:
+			dirpath := filepath.Join(d.SecretRoot(), vol.Secret.Namespace, v.Name)
+			if err := os.MkdirAll(dirpath, 0755); err != nil {
+				return fmt.Errorf("mkdir secretPath %s failed, err=%v", dirpath, err)
+			}
+			for name, data := range vol.Secret.Items {
+				path := filepath.Join(dirpath, name)
+				if pathExists(path) {
+					continue
+				}
+				f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
+				if err != nil {
+					return fmt.Errorf("create secret failed,err=%v", err)
+				}
+				_, err = f.Write(data)
+				if err != nil {
+					return fmt.Errorf("write secret %s failed,err=%v", name, err)
+				}
+				f.Close()
+			}
+		}
+	}
+	return nil
+}
+
 //将k8s的pod转换为docker compose中的
 func (d *dcpPodManager) CreatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	return d.createOrUpdate(ctx, pod)
@@ -139,7 +215,7 @@ func (d *dcpPodManager) UpdatePod(ctx context.Context, pod *v1.Pod) (*v1.Pod, er
 }
 
 func (d *dcpPodManager) DeletePod(ctx context.Context, pod *v1.Pod) error {
-	pp := NewPodProject(d.Project, d.ProjectPath, pod)
+	pp := NewPodProject(d.Config, pod)
 	services := pp.ServiceNames()
 	return d.composeApi.Down(ctx, d.Project, api.DownOptions{
 		Project: &types.Project{
@@ -295,7 +371,7 @@ func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
 
 func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	logrus.Info("podIp:", pod.Status.PodIP, pod.Status.PodIPs)
-	project := NewPodProject(d.Project, d.ProjectPath, pod).Project()
+	project := NewPodProject(d.Config, pod).Project()
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
 			Inherit: true,
@@ -374,6 +450,7 @@ func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON)
 	}
 	pod.Status.Phase = v1.PodRunning
 	pod.Status.Reason = ""
+	pod.Status.PodIP = d.IPAddress
 	pod.Status.HostIP = d.IPAddress
 	pod.Status.Conditions = []v1.PodCondition{
 		{
@@ -481,4 +558,15 @@ func mobyContainerToK8sContainerState(podContainerName string, container moby.Co
 		ret.State.Terminated = terminate
 	}
 	return ret
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
 }

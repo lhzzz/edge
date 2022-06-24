@@ -18,11 +18,9 @@ type PodManager interface {
 	GetPods(ctx context.Context) ([]*v1.Pod, error)
 	GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error)
 	DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error)
+	CreateVolume(ctx context.Context, volume *pb.CreateVolumeRequest) error
 }
 
 func New(opts ...config.Option) PodManager {
-	// if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
-	// 	return k8s.NewPodManager(opts...)
-	// }
 	return dockercompose.NewPodManager(opts...)
 }

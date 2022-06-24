@@ -12,6 +12,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	registryUrlFmt = "%s/edge/registry/node"
+	logoutUrlFmt   = "%s/edge/registry/node?name=%s"
+)
+
 var (
 	paramError = &pb.Error{Code: pb.ErrorCode_PARAMETER_FAILED, Msg: "Param Error"}
 )

@@ -1,8 +1,10 @@
 package dockercompose
 
 import (
+	"edge/internal/edgelet/podmanager/config"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/compose-spec/compose-go/types"
@@ -12,9 +14,8 @@ import (
 )
 
 type dockerComposeProject struct {
-	pod         *v1.Pod
-	project     string
-	projectPath string
+	pod    *v1.Pod
+	config config.Config
 }
 
 type DockerComposeProject interface {
@@ -22,17 +23,16 @@ type DockerComposeProject interface {
 	ServiceNames() []types.ServiceConfig
 }
 
-func NewPodProject(projectName, projectPath string, pod *v1.Pod) DockerComposeProject {
+func NewPodProject(conf config.Config, pod *v1.Pod) DockerComposeProject {
 	return &dockerComposeProject{
-		pod:         pod,
-		project:     projectName,
-		projectPath: projectPath,
+		pod:    pod,
+		config: conf,
 	}
 }
 
 func (dcpp *dockerComposeProject) newDockerComposeLabels(service string, isInit bool) types.Labels {
 	labels := types.Labels{}
-	labels.Add(api.ProjectLabel, dcpp.project)
+	labels.Add(api.ProjectLabel, dcpp.config.Project)
 	labels.Add(api.ServiceLabel, service)
 	labels.Add(api.OneoffLabel, "False")
 	labels.Add(k8sNamespaceLabel, dcpp.pod.ObjectMeta.Namespace)
@@ -59,14 +59,14 @@ func (dcpp *dockerComposeProject) genSourcePath(mountVolumeName string) string {
 		return vo.HostPath.Path
 	}
 	if vo.ConfigMap != nil {
-		logrus.Warn("Not support ConfigMap")
-		return ""
+		return filepath.Join(dcpp.config.ConfigMapRoot(), dcpp.pod.Namespace, vo.Name)
 	}
 	if vo.Secret != nil {
-		logrus.Warn("Not support Secret")
-		return ""
+		return filepath.Join(dcpp.config.SecretRoot(), dcpp.pod.Namespace, vo.Name)
 	}
-	//now not support configmap/secrets
+	if vo.EmptyDir != nil {
+		return filepath.Join(dcpp.config.EmptyDirRoot(), vo.Name)
+	}
 	return ""
 }
 
@@ -108,9 +108,6 @@ func (dcpp *dockerComposeProject) toVolumes(container v1.Container) []types.Serv
 			Type:   types.VolumeTypeBind,
 			Source: source,
 			Target: v.MountPath,
-			Bind: &types.ServiceVolumeBind{
-				CreateHostPath: true,
-			},
 		}
 		vs = append(vs, volume)
 	}
@@ -147,7 +144,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Restart = types.RestartPolicyOnFailure //+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = dcpp.toPort(container)
-	//svrconf.Networks = map[string]*types.ServiceNetworkConfig{dcpp.project: nil}
+	//svrconf.Networks = map[string]*types.ServiceNetworkConfig{dcpp.project: nil} //这个开了会重复创建容器，报错 page not found
 	svrconf.Volumes = dcpp.toVolumes(container)
 	svrconf.Tty = true
 	return svrconf
@@ -183,8 +180,8 @@ func (dcpp *dockerComposeProject) services() types.Services {
 
 func (dcpp *dockerComposeProject) networks() types.Networks {
 	networks := types.Networks{}
-	networks[dcpp.project] = types.NetworkConfig{
-		Name: dcpp.project,
+	networks[dcpp.config.Project] = types.NetworkConfig{
+		Name: dcpp.config.Project,
 	}
 	return networks
 }
@@ -194,7 +191,7 @@ func (dcpp *dockerComposeProject) configs() types.Configs {
 }
 
 func (dcpp *dockerComposeProject) Project() types.Project {
-	project := types.Project{Name: dcpp.project}
+	project := types.Project{Name: dcpp.config.Project}
 	project.Services = dcpp.services()
 	//project.Volumes = dcpp.volumes()
 	//project.Networks = dcpp.networks()
