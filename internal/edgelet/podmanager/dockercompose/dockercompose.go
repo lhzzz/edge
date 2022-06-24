@@ -513,7 +513,7 @@ func mobyContainerToK8sContainerState(podContainerName string, container moby.Co
 	ret.Ready = false
 	createTime, _ := time.Parse(time.RFC3339Nano, container.Created)
 	createAt := metav1.NewTime(createTime)
-	if container.State.Running {
+	if container.State.Running && !container.State.Restarting {
 		ret.Ready = true
 		ret.State.Running = &v1.ContainerStateRunning{
 			StartedAt: createAt,
