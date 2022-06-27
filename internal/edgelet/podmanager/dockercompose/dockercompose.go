@@ -113,31 +113,7 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 		dcp.eventMutex.Unlock()
 		return nil
 	})
-	//dcp.Initialize()
 	return dcp
-}
-
-func (d *dcpPodManager) Initialize() {
-	ctx := context.TODO()
-	netsrcs, err := d.dockerCli.Client().NetworkList(ctx, moby.NetworkListOptions{
-		Filters: filters.NewArgs(projectFilter(d.Project)),
-	})
-	if err != nil {
-		logrus.Error("listnetwork network failed in initial", err)
-		return
-	}
-	if len(netsrcs) == 0 {
-		networkField, networkName := makeNetworkName(d.Project)
-		project := &types.Project{
-			Name:     d.Project,
-			Networks: types.Networks{networkField: types.NetworkConfig{Name: networkName}},
-		}
-		err := d.composeApi.Up(ctx, project, api.UpOptions{Start: api.StartOptions{Project: project}})
-		if err != nil {
-			logrus.Error("up network failed in initial", err)
-			return
-		}
-	}
 }
 
 func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) error {
