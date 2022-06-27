@@ -74,17 +74,6 @@ func (dcpp *dockerComposeProject) genSourcePath(mount v1.VolumeMount) string {
 	return path
 }
 
-//TODO:volumn 的转换处理,configMap/secrets
-func (dcpp *dockerComposeProject) volumes() types.Volumes {
-	volumns := types.Volumes{}
-	for _, v := range dcpp.pod.Spec.Volumes {
-		volumns[v.Name] = types.VolumeConfig{
-			Name: v.Name,
-		}
-	}
-	return volumns
-}
-
 //TODO:健康检测的转换处理
 func (dcpp *dockerComposeProject) toHealthCheck(container v1.Container) *types.HealthCheckConfig {
 
@@ -118,7 +107,6 @@ func (dcpp *dockerComposeProject) toVolumes(container v1.Container) []types.Serv
 	return vs
 }
 
-//TODO:port转换有问题
 func (dcpp *dockerComposeProject) toPort(container v1.Container) []types.ServicePortConfig {
 	var ports []types.ServicePortConfig
 	for _, p := range container.Ports {
@@ -148,7 +136,12 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Restart = types.RestartPolicyOnFailure //+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = dcpp.toPort(container)
-	//svrconf.Networks = map[string]*types.ServiceNetworkConfig{dcpp.project: nil} //这个开了会重复创建容器，报错 page not found
+
+	netfield, _ := makeNetworkName(dcpp.config.Project)
+	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {
+		Aliases: []string{},
+	}}
+	svrconf.NetworkMode = dcpp.config.Project
 	svrconf.Volumes = dcpp.toVolumes(container)
 	svrconf.Tty = true
 	return svrconf
@@ -164,7 +157,7 @@ func (dcpp *dockerComposeProject) services() types.Services {
 		svrconf := dcpp.toService(ic, true)
 		if i != 0 {
 			svrconf.DependsOn = types.DependsOnConfig{
-				lastServiceName: serviceHealthDependency,
+				lastServiceName: serviceCompeleteDependency,
 			}
 		}
 		lastServiceName = svrconf.Name
@@ -175,31 +168,16 @@ func (dcpp *dockerComposeProject) services() types.Services {
 		svrconf := dcpp.toService(c, false)
 		svrconf.DependsOn = types.DependsOnConfig{}
 		for _, isn := range initServiceNames {
-			svrconf.DependsOn[isn] = serviceHealthDependency
+			svrconf.DependsOn[isn] = serviceCompeleteDependency
 		}
 		services = append(services, svrconf)
 	}
 	return services
 }
 
-func (dcpp *dockerComposeProject) networks() types.Networks {
-	networks := types.Networks{}
-	networks[dcpp.config.Project] = types.NetworkConfig{
-		Name: dcpp.config.Project,
-	}
-	return networks
-}
-
-func (dcpp *dockerComposeProject) configs() types.Configs {
-	return types.Configs{}
-}
-
 func (dcpp *dockerComposeProject) Project() types.Project {
 	project := types.Project{Name: dcpp.config.Project}
 	project.Services = dcpp.services()
-	//project.Volumes = dcpp.volumes()
-	//project.Networks = dcpp.networks()
-	//project.Configs = dcpp.configs()
 	return project
 }
 

@@ -50,6 +50,7 @@ const (
 	completedReason        containerReason = "Completed"
 	crashLoopBackOffReason containerReason = "CrashLoopBackOff"
 	errorReason            containerReason = "Error"
+	recreateReason         containerReason = "ReCreated"
 )
 
 var (
@@ -57,7 +58,10 @@ var (
 	errMissingMeta = errors.New("missing metaName")
 
 	//health service dependency
-	serviceHealthDependency = types.ServiceDependency{Condition: "service_healthy"}
+	serviceHealthDependency = types.ServiceDependency{Condition: types.ServiceConditionHealthy}
+
+	//init-container dependency
+	serviceCompeleteDependency = types.ServiceDependency{Condition: types.ServiceConditionCompletedSuccessfully}
 
 	//default fields entry
 	k8sManagerFieldsEntry = []metav1.ManagedFieldsEntry{
@@ -118,9 +122,10 @@ func (d *dcpPodManager) Initialize() {
 		return
 	}
 	if len(netsrcs) == 0 {
+		networkField, networkName := makeNetworkName(d.Project)
 		project := &types.Project{
 			Name:     d.Project,
-			Networks: types.Networks{d.Project: types.NetworkConfig{Name: d.Project}},
+			Networks: types.Networks{networkField: types.NetworkConfig{Name: networkName}},
 		}
 		err := d.composeApi.Up(ctx, project, api.UpOptions{Start: api.StartOptions{Project: project}})
 		if err != nil {
@@ -375,20 +380,19 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Po
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
 			Inherit: true,
-			// Recreate:             api.RecreateDiverged,
+			//Recreate:             api.RecreateDiverged,
 			// RecreateDependencies: api.RecreateDiverged,
-			Recreate:      api.RecreateForce,
-			IgnoreOrphans: true,
+			Recreate:             api.RecreateNever,
+			RecreateDependencies: api.RecreateNever,
+			IgnoreOrphans:        true,
 		},
 		Start: api.StartOptions{Project: &project},
 	})
 	if err != nil {
-		logrus.Info("createOrUpdate Pod failed,err=", err)
 		return pod, err
 	}
 	pod, err = d.GetPod(ctx, pod.Namespace, pod.Name)
 	if err != nil {
-		logrus.Info("GetPod in createOrUpdate failed,err=", err)
 		return pod, err
 	}
 	return pod, nil
@@ -410,6 +414,10 @@ func parseContainerServiceName(serviceName string) (podName, containerName strin
 	}
 	containerName = slice[i]
 	return
+}
+
+func makeNetworkName(projectName string) (networkField, networkName string) {
+	return "default", projectName + "_default"
 }
 
 func projectFilter(projectName string) filters.KeyValuePair {
