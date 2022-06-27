@@ -9,7 +9,6 @@ import (
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/compose/v2/pkg/api"
-	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -117,7 +116,6 @@ func (dcpp *dockerComposeProject) toPort(container v1.Container) []types.Service
 			Target:    uint32(p.ContainerPort),
 		})
 	}
-	logrus.Info("ports:", ports)
 	return ports
 }
 
