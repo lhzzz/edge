@@ -51,6 +51,7 @@ const (
 	crashLoopBackOffReason containerReason = "CrashLoopBackOff"
 	errorReason            containerReason = "Error"
 	recreateReason         containerReason = "ReCreated"
+	pendingReason          containerReason = "Pending"
 )
 
 var (
@@ -62,6 +63,9 @@ var (
 
 	//init-container dependency
 	serviceCompeleteDependency = types.ServiceDependency{Condition: types.ServiceConditionCompletedSuccessfully}
+
+	//Pending Container
+	pendingContainerState = v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: string(pendingReason)}}
 
 	//default fields entry
 	k8sManagerFieldsEntry = []metav1.ManagedFieldsEntry{
@@ -76,6 +80,7 @@ type dcpPodManager struct {
 	dockerCli  command.Cli
 	podEvents  map[string]struct{}
 	eventMutex sync.RWMutex
+	podMutex   sync.Mutex
 }
 
 //Docker Compose版本必须要在V2.0 以上
@@ -108,7 +113,7 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 		dcp.eventMutex.Unlock()
 		return nil
 	})
-	dcp.Initialize()
+	//dcp.Initialize()
 	return dcp
 }
 
@@ -376,6 +381,8 @@ func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
 
 func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Pod, error) {
 	logrus.Info("podIp:", pod.Status.PodIP, pod.Status.PodIPs)
+	d.podMutex.Lock()
+	defer d.podMutex.Unlock()
 	project := NewPodProject(d.Config, pod).Project()
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
@@ -491,23 +498,27 @@ func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON)
 	//spec container
 	var initStatus, statuses []v1.ContainerStatus
 	for _, ic := range pod.Spec.InitContainers {
-		mobyContainer := initContainers[ic.Name]
-		containerStatus := mobyContainerToK8sContainerState(ic.Name, mobyContainer, true)
-		if !containerStatus.Ready {
-			pod.Status.Conditions[0].Status = v1.ConditionFalse
-			pod.Status.Conditions[1].Status = v1.ConditionFalse
+		mobyContainer, ok := initContainers[ic.Name]
+		if ok {
+			containerStatus := mobyContainerToK8sContainerState(ic.Name, mobyContainer, true)
+			if !containerStatus.Ready {
+				pod.Status.Conditions[0].Status = v1.ConditionFalse
+				pod.Status.Conditions[1].Status = v1.ConditionFalse
+			}
+			initStatus = append(initStatus, containerStatus)
 		}
-		initStatus = append(initStatus, containerStatus)
 	}
 	pod.Status.InitContainerStatuses = initStatus
 
 	for _, c := range pod.Spec.Containers {
-		mobyContainer := runContainers[c.Name]
-		containerStatus := mobyContainerToK8sContainerState(c.Name, mobyContainer, false)
-		if !containerStatus.Ready {
-			pod.Status.Conditions[1].Status = v1.ConditionFalse
+		mobyContainer, ok := runContainers[c.Name]
+		if ok {
+			containerStatus := mobyContainerToK8sContainerState(c.Name, mobyContainer, false)
+			if !containerStatus.Ready {
+				pod.Status.Conditions[1].Status = v1.ConditionFalse
+			}
+			statuses = append(statuses, containerStatus)
 		}
-		statuses = append(statuses, containerStatus)
 	}
 	pod.Status.ContainerStatuses = statuses
 	return &pod

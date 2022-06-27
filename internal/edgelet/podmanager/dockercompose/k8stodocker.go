@@ -136,12 +136,17 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Restart = types.RestartPolicyOnFailure //+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = dcpp.toPort(container)
-
+	aliasNames := make([]string, 0)
+	if !isInit {
+		if len(dcpp.pod.OwnerReferences) > 0 {
+			own := dcpp.pod.OwnerReferences[0]
+			if own.Kind != "Job" {
+				aliasNames = append(aliasNames, own.Name)
+			}
+		}
+	}
 	netfield, _ := makeNetworkName(dcpp.config.Project)
-	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {
-		Aliases: []string{},
-	}}
-	svrconf.NetworkMode = dcpp.config.Project
+	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}
 	svrconf.Volumes = dcpp.toVolumes(container)
 	svrconf.Tty = true
 	return svrconf
@@ -164,11 +169,15 @@ func (dcpp *dockerComposeProject) services() types.Services {
 		services = append(services, svrconf)
 		initServiceNames = append(initServiceNames, svrconf.Name)
 	}
-	for _, c := range dcpp.pod.Spec.Containers {
+	for i, c := range dcpp.pod.Spec.Containers {
 		svrconf := dcpp.toService(c, false)
 		svrconf.DependsOn = types.DependsOnConfig{}
 		for _, isn := range initServiceNames {
 			svrconf.DependsOn[isn] = serviceCompeleteDependency
+		}
+		//多容器Pod网络处理，都依赖于第一个容器的网络
+		if i > 0 {
+			svrconf.NetworkMode = "service:" + makeContainerServiceName(dcpp.pod.Name, dcpp.pod.Spec.Containers[0].Name)
 		}
 		services = append(services, svrconf)
 	}
@@ -178,6 +187,8 @@ func (dcpp *dockerComposeProject) services() types.Services {
 func (dcpp *dockerComposeProject) Project() types.Project {
 	project := types.Project{Name: dcpp.config.Project}
 	project.Services = dcpp.services()
+	networkField, networkName := makeNetworkName(project.Name)
+	project.Networks = types.Networks{networkField: types.NetworkConfig{Name: networkName}}
 	return project
 }
 
