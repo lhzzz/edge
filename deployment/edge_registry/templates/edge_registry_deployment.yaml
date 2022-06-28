@@ -17,19 +17,10 @@ spec:
     spec:
       containers:
       - name: edge-registry
-        image: registry.sakura.com/edge-registry:v1.0
+        image: registry.zhst.com/cloud-native/edge-registry:latest
         command:
           - /usr/local/bin/edge-registry
         imagePullPolicy: IfNotPresent
-        livenessProbe:
-            httpGet:
-              path: /edge/registry/ping
-              port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 60
-            timeoutSeconds: 3
-            successThreshold: 1
-            failureThreshold: 1
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

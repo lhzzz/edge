@@ -3,7 +3,7 @@
 CMD=cmd/
 BIN=bin/
 DOCKERFILE=build/docker/
-REGISTRY=registry.sakura.com
+REGISTRY=registry.zhst.com
 CI_PROJECT_NAMESPACE=cloud-native
 CI_PIPELINE_ID=1
 

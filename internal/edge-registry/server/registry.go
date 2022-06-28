@@ -2,136 +2,63 @@ package server
 
 import (
 	"context"
-	"edge/api/edge-proto/pb"
+	"edge/internal/constant"
 	"edge/internal/constant/manifests"
-	"net/http"
-	"sync"
-
 	"edge/pkg/kubeclient"
 
-	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
-var (
-	cs   *kubernetes.Clientset
-	once sync.Once
-
-	pbErrJsonFmt = &pb.Error{Code: pb.ErrorCode_PARAMETER_FAILED, Msg: "not a json fmt"}
-	pbErrParam   = func(validateErr string) *pb.Error {
-		return &pb.Error{Code: pb.ErrorCode_PARAMETER_FAILED, Msg: validateErr}
-	}
-	pbErrInternal = func(err error) *pb.Error { return &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()} }
-)
-
-func getK8sClient() *kubernetes.Clientset {
-	once.Do(func() {
-		clientset, err := kubeclient.GetClientSetInCluster()
-		if err != nil {
-			panic(err.Error())
-		}
-		cs = clientset
-	})
-	return cs
-}
-
-/*
-1、创建一个deploy和svc给virtual-kubelet ? (svc能否只用一个)
-*/
-func createNode(c *gin.Context) {
-	req := &pb.JoinRequest{}
-	resp := &pb.JoinResponse{}
-	if err := c.BindJSON(req); err != nil {
-		resp.Error = pbErrJsonFmt
-		c.JSON(http.StatusBadRequest, resp)
-		return
-	}
-	if req.NodeName == "" || req.Token == "" {
-		resp.Error = pbErrParam("NodeName or Token is empty")
-		c.JSON(http.StatusBadRequest, resp)
-		return
-	}
-
-	logrus.Info("request:", req)
-	namespace := req.NodeName
-	option := map[string]string{
-		"NodeName":      req.NodeName,
-		"NodeNamespace": namespace,
-	}
-
-	node, _ := getK8sClient().CoreV1().Nodes().Get(context.TODO(), req.NodeName, v1.GetOptions{})
-	if node != nil {
-		logrus.Infof("Node %s Has Already Exist", req.NodeName)
-		c.JSON(http.StatusOK, resp)
-		return
-	}
-
-	if err := kubeclient.CreateResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
-		logrus.Error("CreateResourceWithFile failed,err=", err)
-		resp.Error = pbErrInternal(err)
-		c.JSON(http.StatusInternalServerError, resp)
-		return
-	}
-
-	// pathType := netv1.PathTypePrefix
-	// route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, req.NodeName)
-	// path := netv1.HTTPIngressPath{
-	// 	Path:     route,
-	// 	PathType: &pathType,
-	// 	Backend: netv1.IngressBackend{
-	// 		Service: &netv1.IngressServiceBackend{
-	// 			Name: req.NodeName,
-	// 			Port: netv1.ServiceBackendPort{Number: constant.VirtualKubeletDeafultPort},
-	// 		},
-	// 	},
-	// }
-	// if err := kubeclient.AppendPathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, path); err != nil {
-	// 	logrus.Error("create Ingress failed,err=", err)
-	// 	resp.Error = pbErrInternal(err)
-	// 	c.JSON(http.StatusInternalServerError, resp)
-	// 	return
-	// }
-	c.JSON(http.StatusOK, resp)
-}
-
-func deleteNode(c *gin.Context) {
-	resp := &pb.ResetResponse{}
-
-	nodeName := c.Query("name")
-	if nodeName == "" {
-		resp.Error = pbErrParam("NodeName is empty")
-		c.JSON(http.StatusBadRequest, resp)
-		return
-	}
-
-	namespace := nodeName
+func createEdgeNode(ctx context.Context, nodeName string) (bool, error) {
 	option := map[string]string{
 		"NodeName":      nodeName,
-		"NodeNamespace": namespace,
+		"NodeNamespace": constant.EdgeNameSpace,
 	}
-	if err := kubeclient.DeleteResourceWithFile(getK8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
-		logrus.Error("DeleteResourceWithFile failed,err=", err)
-		resp.Error = pbErrInternal(err)
-		c.JSON(http.StatusInternalServerError, resp)
-		return
+	isNeedCreate := false
+	_, err := k8sClient().CoreV1().Nodes().Get(context.TODO(), nodeName, v1.GetOptions{})
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return false, err
+		}
+		isNeedCreate = true
 	}
-	// route := fmt.Sprintf(constant.EdgeIngressPrefixFormat, nodeName)
-	// if err := kubeclient.RemovePathToIngress(getK8sClient(), constant.EdgeNameSpace, constant.EdgeIngress, route); err != nil {
-	// 	logrus.Error("remove path in Ingress failed,err=", err)
-	// 	resp.Error = pbErrInternal(err)
-	// 	c.JSON(http.StatusInternalServerError, resp)
-	// 	return
-	// }
 
-	c.JSON(http.StatusOK, resp)
+	_, err = k8sClient().AppsV1().Deployments(constant.EdgeNameSpace).Get(ctx, "vk-"+nodeName, v1.GetOptions{})
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return false, err
+		}
+		isNeedCreate = true
+	}
+
+	if !isNeedCreate {
+		logrus.Infof("node %s Has Already Exist", nodeName)
+		return true, nil
+	}
+
+	if err := kubeclient.CreateResourceWithFile(k8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
+		//rollback
+		kubeclient.DeleteResourceWithFile(k8sClient(), manifests.VirtualKubeletYaml, option)
+		return false, err
+	}
+	return false, nil
 }
 
-func describeNode(c *gin.Context) {
-
-}
-
-func healthCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, "pong")
+func deleteEdgeNode(ctx context.Context, nodeName string) error {
+	option := map[string]string{
+		"NodeName":      nodeName,
+		"NodeNamespace": constant.EdgeNameSpace,
+	}
+	if err := kubeclient.DeleteResourceWithFile(k8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
+		return err
+	}
+	if err := k8sClient().CoreV1().Nodes().Delete(ctx, nodeName, v1.DeleteOptions{}); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }

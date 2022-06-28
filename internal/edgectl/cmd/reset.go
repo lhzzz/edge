@@ -22,7 +22,7 @@ func NewResetCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 	resetOptions.writer = out
 	cmd := &cobra.Command{
 		Use:   "reset",
-		Short: "Performs a best effort revert of changes made to this host by 'edgectl init' or 'edgectl join'",
+		Short: "Performs a best effort revert of changes made to this host by 'edgectl join'",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return resetRunner(cfg.EdgeletAddress, resetOptions)
 		},

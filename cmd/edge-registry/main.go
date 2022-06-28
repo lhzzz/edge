@@ -12,5 +12,6 @@ func main() {
 	if err != nil {
 		logrus.Fatal("CreateEdgeRegistry failed,err=", err)
 	}
-	er.Run(":80")
+	//er.Run(":80")
+	er.RunGrpc(":80")
 }

@@ -19,8 +19,7 @@ var (
 		* Certificate signing request was sent to apiserver and a response was received.
 		* The Edgectl was informed of the new secure connection details.
 
-		Run 'edgectl get nodes' on the control-plane to see this node join the cluster.
-
+		
 		`)
 	joinLongDescription = dedent.Dedent(`
 		When joining a cloud initialized cluster, we need to establish
@@ -67,10 +66,9 @@ var (
 )
 
 type joinOptions struct {
-	nodeName     string //node的名字
-	token        string //cloud分配的token
-	cloudAddress string //云端的地址
-	writer       io.Writer
+	nodeName        string //node的名字
+	registryAddress string //云端的地址
+	writer          io.Writer
 }
 
 func NewJoinCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
@@ -87,14 +85,11 @@ func NewJoinCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 			if cfg.EdgeletAddress == "" {
 				return fmt.Errorf("edgelet address is empty")
 			}
-			if joinOptions.cloudAddress == "" {
-				return fmt.Errorf("please enter cloudAddress")
+			if joinOptions.registryAddress == "" {
+				return fmt.Errorf("please enter Cloud Registry Address")
 			}
 			if joinOptions.nodeName == "" {
 				return fmt.Errorf("please enter node-name")
-			}
-			if joinOptions.token == "" {
-				return fmt.Errorf("please enter token")
 			}
 			return nil
 		},
@@ -110,16 +105,12 @@ func newJoinOptions() *joinOptions {
 // addJoinOtherFlags adds join flags that are not bound to a configuration file to the given flagset
 func addJoinFlags(flagSet *pflag.FlagSet, joinOptions *joinOptions) {
 	flagSet.StringVar(
-		&joinOptions.token, "token", "",
-		"Use this token for both discovery-token and tls-bootstrap-token when those values are not provided.",
-	)
-	flagSet.StringVar(
 		&joinOptions.nodeName, "node-name", "",
 		"Specify the node name.",
 	)
 	flagSet.StringVar(
-		&joinOptions.cloudAddress, "cloud-address", "",
-		"Specify the cloud-cluster address.",
+		&joinOptions.registryAddress, "registry-address", "",
+		"Specify the cloud-cluster registry address.",
 	)
 }
 
@@ -132,8 +123,7 @@ func joinRunner(edgeletAddress string, opt *joinOptions) error {
 	client := pb.NewEdgeadmClient(conn)
 	resp, err := client.Join(context.Background(), &pb.JoinRequest{
 		NodeName:     opt.nodeName,
-		Token:        opt.token,
-		CloudAddress: opt.cloudAddress,
+		CloudAddress: opt.registryAddress,
 	})
 	if err != nil {
 		logrus.Error("Join failed,err=", err)

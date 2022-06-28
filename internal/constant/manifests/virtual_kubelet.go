@@ -8,7 +8,7 @@ const VirtualKubeletYaml = `
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{.NodeName}}
+  name: vk-{{.NodeName}}
   namespace: edge-cluster
   labels:
     k8s-app: vk-{{.NodeName}}
@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
       - name: virtual-kubelet
-        image: registry.sakura.com/cloud-native/virtual-kubelet:latest
+        image: registry.zhst.com/cloud-native/virtual-kubelet:latest
         command:
         - /home/virtual-kubelet
         args:
@@ -32,6 +32,14 @@ spec:
         - --provider-config=/home/vk-config/cci.toml
         - --provider=zhst
         imagePullPolicy: IfNotPresent
+        env:
+        - name: JAEGER_AGENT_ENDPOINT
+          value: jaeger-agent:6831
+        - name: CLUSTER_POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
         volumeMounts:
           - name: kube-config
             mountPath: /root/.kube/
@@ -68,9 +76,6 @@ spec:
   - name: kubelet
     port: 10250
     targetPort: 10250
-#  - name: http
-#    port: 80
-#    targetPort: 80
   selector:
     k8s-app: vk-{{.NodeName}}
 `
