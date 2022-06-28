@@ -30,7 +30,14 @@ spec:
             timeoutSeconds: 3
             successThreshold: 1
             failureThreshold: 1
-      nodeSelector:
-              virtual: "false"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
       serviceAccount: edge-registry
       serviceAccountName: edge-registry

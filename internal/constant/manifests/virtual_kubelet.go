@@ -2,22 +2,6 @@ package manifests
 
 const VIRTUAL_KUBELET = "virtual_kubelet.yaml"
 
-//TODO:放contanst由代码生成还是直接deploy
-const VirtualKubeletConfigMapYaml = `
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: vk-config
-data:
-  cci.toml: |
-    {
-        "cpu":"20",
-        "memory":"100Gi",
-        "pods":"20",
-        "edgeaddress":""
-    }
-`
-
 //因为virtual-kubelet需要和apiserver进行交互，创建Node
 const VirtualKubeletYaml = `
 ---
@@ -40,7 +24,7 @@ spec:
     spec:
       containers:
       - name: virtual-kubelet
-        image: vk:latest
+        image: registry.sakura.com/cloud-native/virtual-kubelet:latest
         command:
         - /home/virtual-kubelet
         args:
@@ -62,8 +46,15 @@ spec:
       - name: cci
         configMap:
           name: vk-config
-      nodeSelector:
-        virtual: "false"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
 ---
 kind: Service
 apiVersion: v1
@@ -75,11 +66,11 @@ metadata:
 spec:
   ports:
   - name: kubelet
-    port: 10251
-    targetPort: 10251
-  - name: http
-    port: 80
-    targetPort: 80
+    port: 10250
+    targetPort: 10250
+#  - name: http
+#    port: 80
+#    targetPort: 80
   selector:
     k8s-app: vk-{{.NodeName}}
 `

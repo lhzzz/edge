@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vk-config
+  namespace: edge-cluster
+data:
+  cci.toml: |
+    {
+        "edgeaddress":""
+    }
