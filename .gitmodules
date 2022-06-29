@@ -1,4 +1,4 @@
 
 [submodule "api/edge-proto"]
 	path = api/edge-proto
-	url = http://gitlab.zhst-dev.com/cloud-native/edge-proto.git
+	url = ../edge-proto.git
