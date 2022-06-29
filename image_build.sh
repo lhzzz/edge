@@ -7,11 +7,10 @@ DOCKERFILE=build/docker/
 REGISTRY=registry.zhst.com
 VERSION=v1.
 
-docker login ${REGISTRY}
-
 if [[ $1 == "cicd" ]]
 then
     echo "make image in CICD pipeline"
+    docker login ${REGISTRY}
     for d in $(ls $CMD -l | grep ^d | awk '{print $9}')
     do 
         if [ "$(ls ${DOCKERFILE}${d})" ]; then 
