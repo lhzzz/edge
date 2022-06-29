@@ -26,16 +26,19 @@
 
 ### 编译
 + 记得拉git submodule
-    ```
-    git submodule init
-    git submodule update
-    ```
+
+```shell
+git submodule init
+git submodule update
+```
 + 编译命令
-    ```
-    make 
-    ```
+
+```shell
+make 
+```
 
 ### 生成镜像
-```
+
+```shell
 make image
 ```
