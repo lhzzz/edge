@@ -1,10 +1,13 @@
 #!/bin/bash
+set -e
 
 CMD=cmd/
 BIN=bin/
 DOCKERFILE=build/docker/
 REGISTRY=registry.zhst.com
 VERSION=v1.
+
+docker login ${REGISTRY}
 
 if [[ $1 == "cicd" ]]
 then
