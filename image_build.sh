@@ -16,7 +16,7 @@ then
         if [ "$(ls ${DOCKERFILE}${d})" ]; then 
             cp ${BIN}${d} ${DOCKERFILE}${d}/
             docker build -t ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID} ${DOCKERFILE}${d}/
-            #docker push ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID}
+            docker push ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID}
             rm ${DOCKERFILE}${d}/${d}
             echo ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID}
         fi
