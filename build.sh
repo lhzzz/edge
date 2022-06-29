@@ -1,4 +1,5 @@
 #! /bin/bash
+set -e
 
 APIDIR=$PWD/api/edge-proto
 chmod +x $APIDIR/*
