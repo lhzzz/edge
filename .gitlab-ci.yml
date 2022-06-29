@@ -3,7 +3,7 @@ variables:
 
 stages:
   - build
-  - image
+  - package
 
 linux_build:
   image: registry.zhst.com/dev/golang-version-1.17.6:latest
@@ -19,7 +19,9 @@ linux_build:
 
 linux_image:
   image: registry.zhst.com/dev/golang:latest
-  stage: image 
+  tags:
+    - linux 
+  stage: package 
   script: 
     - make ci_image 
   dependencies:
