@@ -85,9 +85,6 @@ func NewJoinCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 			if cfg.EdgeletAddress == "" {
 				return fmt.Errorf("edgelet address is empty")
 			}
-			if joinOptions.registryAddress == "" {
-				return fmt.Errorf("please enter Cloud Registry Address")
-			}
 			if joinOptions.nodeName == "" {
 				return fmt.Errorf("please enter node-name")
 			}

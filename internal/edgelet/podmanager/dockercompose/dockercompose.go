@@ -9,6 +9,7 @@ import (
 	"edge/api/edge-proto/pb"
 	pmconf "edge/internal/edgelet/podmanager/config"
 	"edge/pkg/errdefs"
+	"edge/pkg/util"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -121,7 +122,7 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 		switch vol := v.Volumn.(type) {
 		case *pb.EdgeVolume_EmptyDir:
 			path := filepath.Join(d.EmptyDirRoot(), v.Name)
-			if pathExists(path) {
+			if util.IsFileExist(path) {
 				continue
 			}
 			err := os.MkdirAll(path, 0755)
@@ -130,7 +131,7 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 			}
 		case *pb.EdgeVolume_HostPath:
 			path := vol.HostPath.Path
-			if pathExists(path) {
+			if util.IsFileExist(path) {
 				continue
 			}
 			hostType := v1.HostPathType(vol.HostPath.HostType)
@@ -153,7 +154,7 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 			}
 			for name, data := range vol.ConfigMap.Items {
 				path := filepath.Join(dirpath, name)
-				if pathExists(path) {
+				if util.IsFileExist(path) {
 					continue
 				}
 				f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
@@ -173,7 +174,7 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 			}
 			for name, data := range vol.Secret.Items {
 				path := filepath.Join(dirpath, name)
-				if pathExists(path) {
+				if util.IsFileExist(path) {
 					continue
 				}
 				f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
@@ -261,13 +262,13 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 		}
 		podContainers[podName] = append(podContainers[podName], inspect)
 	}
-	ret := make([]*v1.Pod, len(podContainers))
+	pods := make([]*v1.Pod, len(podContainers))
 	index := 0
 	for _, cs := range podContainers {
-		ret[index] = d.mobyContainersToK8sPod(cs...)
+		pods[index] = d.mobyContainersToK8sPod(cs...)
 		index++
 	}
-	return ret, nil
+	return pods, nil
 }
 
 func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error) {
@@ -551,15 +552,4 @@ func mobyContainerToK8sContainerState(podContainerName string, container moby.Co
 		ret.State.Terminated = terminate
 	}
 	return ret
-}
-
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true
-	}
-	if os.IsNotExist(err) {
-		return false
-	}
-	return false
 }

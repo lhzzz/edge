@@ -22,7 +22,7 @@ import (
 )
 
 type edgelet struct {
-	cloudAddress       string
+	config             *EdgeletConfig
 	addressMutex       sync.Mutex
 	pm                 podmanager.PodManager
 	lastHeartbeatTime  metav1.Time
@@ -44,12 +44,22 @@ func NewEdgelet() *edgelet {
 	localaddress, _ := getOutBoundIP()
 	kernalversion, _ := host.KernelVersion()
 	platform, _, _, _ := host.PlatformInformation()
+	conf, err := initConfig()
+	if err != nil {
+		logrus.Panicf("init config %s, err=%v", configPath, err)
+	}
+	logrus.Info("config load success:", conf)
 	return &edgelet{
 		kernalVersion:  kernalversion,
 		OSIImage:       platform,
 		localIPAddress: localaddress,
 		pm:             podmanager.New(config.WithIPAddress(localaddress)),
+		config:         conf,
 	}
+}
+
+func (e *edgelet) Stop() {
+	e.config.Save()
 }
 
 func (e *edgelet) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
@@ -201,7 +211,7 @@ func (e *edgelet) GetStatsSummary(ctx context.Context, req *pb.GetStatsSummaryRe
 }
 
 func (e *edgelet) DescribeNodeStatus(ctx context.Context, req *pb.DescribeNodeStatusRequest) (*pb.DescribeNodeStatusResponse, error) {
-	logrus.Info("DescribeNodeStatus")
+	logrus.Debug("DescribeNodeStatus")
 	resp := &pb.DescribeNodeStatusResponse{}
 	changePods, err := e.pm.DescribePodsStatus(ctx)
 	if err != nil {

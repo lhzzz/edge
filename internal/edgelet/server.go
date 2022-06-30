@@ -44,6 +44,7 @@ func Run(runAddress string) {
 	<-quit
 
 	logrus.Info("Shutting down server...")
+	edgelet.Stop()
 	grpcServer.Stop()
 	logrus.Info("Server exiting")
 }

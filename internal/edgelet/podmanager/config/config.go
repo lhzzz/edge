@@ -4,7 +4,7 @@ import "path/filepath"
 
 const (
 	defaultProject     = "edge"
-	defaultProjectPath = "/data/docker-compose/"
+	defaultProjectPath = "/data/edgelet/"
 )
 
 type Config struct {
