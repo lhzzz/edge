@@ -119,6 +119,7 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 
 func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) error {
 	for _, v := range req.Vols {
+		logrus.Info("CreateVolume", v)
 		switch vol := v.Volumn.(type) {
 		case *pb.EdgeVolume_EmptyDir:
 			path := filepath.Join(d.EmptyDirRoot(), v.Name)
@@ -132,10 +133,11 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 		case *pb.EdgeVolume_HostPath:
 			path := vol.HostPath.Path
 			if util.IsFileExist(path) {
+				logrus.Info("path is exist:", path)
 				continue
 			}
 			hostType := v1.HostPathType(vol.HostPath.HostType)
-			if hostType == v1.HostPathDirectory || hostType == v1.HostPathDirectoryOrCreate {
+			if hostType == v1.HostPathDirectory || hostType == v1.HostPathDirectoryOrCreate || hostType == v1.HostPathUnset {
 				err := os.MkdirAll(path, 0755)
 				if err != nil {
 					return fmt.Errorf("mkdir hostPath failed,err=%v", err)

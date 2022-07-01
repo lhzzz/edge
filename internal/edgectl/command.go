@@ -14,7 +14,7 @@ import (
 
 var (
 	edgectlConf = cmd.EdgeCtlConfig{
-		EdgeletAddress: ":10250",
+		EdgeletAddress: ":10350",
 	}
 )
 
@@ -59,7 +59,7 @@ func globalFlagSet(flagset *flag.FlagSet) {
 	if flagset == nil {
 		flagset = flag.CommandLine
 	}
-	flagset.StringVar(&edgectlConf.EdgeletAddress, "edgelet-address", ":10250", "connect edgelet to communicate cloud-cluster")
+	flagset.StringVar(&edgectlConf.EdgeletAddress, "edgelet-address", ":10350", "connect edgelet to communicate cloud-cluster")
 	pflag.CommandLine.AddGoFlagSet(flagset)
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 	flag.Parse()

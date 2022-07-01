@@ -28,7 +28,7 @@ func Run(runAddress string) {
 	pb.RegisterEdgeletServer(grpcServer, edgelet)
 	pb.RegisterEdgeadmServer(grpcServer, edgelet)
 
-	listen, err := net.Listen("tcp", runAddress)
+	listen, err := net.Listen("tcp4", runAddress)
 	if err != nil {
 		logrus.Fatal("failed to listen: ", err)
 	}

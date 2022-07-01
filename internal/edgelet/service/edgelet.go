@@ -6,11 +6,10 @@ import (
 	"edge/internal/edgelet/podmanager"
 	"edge/internal/edgelet/podmanager/config"
 	"edge/pkg/errdefs"
+	"edge/pkg/util"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/shirou/gopsutil/host"
@@ -41,7 +40,7 @@ var (
 )
 
 func NewEdgelet() *edgelet {
-	localaddress, _ := getOutBoundIP()
+	localaddress, _ := util.GetOutBoundIP()
 	kernalversion, _ := host.KernelVersion()
 	platform, _, _, _ := host.PlatformInformation()
 	conf, err := initConfig()
@@ -345,15 +344,4 @@ func (e *edgelet) operatingSystem() string {
 
 func (e *edgelet) architecture() string {
 	return runtime.GOARCH
-}
-
-func getOutBoundIP() (ip string, err error) {
-	conn, err := net.Dial("udp", "8.8.8.8:53")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	ip = strings.Split(localAddr.String(), ":")[0]
-	return
 }
