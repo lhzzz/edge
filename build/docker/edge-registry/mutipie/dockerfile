@@ -1,0 +1,6 @@
+FROM --platform=$TARGETPLATFORM ubuntu:20.04
+
+ARG TARGETARCH
+ADD ${TARGETARCH}/edge-registry /usr/local/bin
+
+ENTRYPOINT ["/usr/local/bin/edge-registry"]

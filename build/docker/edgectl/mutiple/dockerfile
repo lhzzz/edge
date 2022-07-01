@@ -1,0 +1,4 @@
+FROM --platform=$TARGETPLATFORM alpine 
+
+ARG TARGETARCH
+ADD ${TARGETARCH}/edgectl /usr/local/bin
