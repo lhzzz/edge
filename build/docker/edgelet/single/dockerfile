@@ -1,5 +1,3 @@
 FROM ubuntu:18.04
 
 ADD edgelet /usr/local/bin
-
-ENTRYPOINT ["/usr/local/bin/edgelet"]
