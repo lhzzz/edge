@@ -17,3 +17,10 @@ func InternalErr(err error) *pb.Error {
 		Msg:  err.Error(),
 	}
 }
+
+func StreamFinishErr(msg string) *pb.Error {
+	return &pb.Error{
+		Code: pb.ErrorCode_SERVICE_STREAM_CALL_FINISH,
+		Msg:  msg,
+	}
+}

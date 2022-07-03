@@ -54,3 +54,11 @@ func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetRes
 	resp.Error = delresp.Error
 	return resp, nil
 }
+
+//TODO:升级组件，还没想好方案
+func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.UpgradeResponse, error) {
+	logrus.Info("Upgrade request:", req)
+	resp := &pb.UpgradeResponse{}
+
+	return resp, nil
+}

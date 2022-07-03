@@ -1,0 +1,3 @@
+FROM pstauffer/curl 
+
+ADD ping /usr/local/bin 

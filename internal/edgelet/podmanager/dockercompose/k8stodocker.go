@@ -131,7 +131,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Environment = dcpp.toEnv(container)
 	svrconf.HealthCheck = dcpp.toHealthCheck(container)
 	svrconf.PullPolicy = types.PullPolicyIfNotPresent
-	svrconf.Restart = types.RestartPolicyOnFailure //+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
+	svrconf.Restart = types.RestartPolicyAlways //types.RestartPolicyOnFailure+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = dcpp.toPort(container)
 	aliasNames := make([]string, 0)

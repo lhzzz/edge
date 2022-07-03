@@ -35,10 +35,6 @@ const (
 	GiB = 1024 * 1024 * 1024
 )
 
-var (
-	pberrEOF = &pb.Error{Code: pb.ErrorCode_SERVICE_STREAM_CALL_FINISH}
-)
-
 func NewEdgelet() *edgelet {
 	localaddress, _ := util.GetOutBoundIP()
 	kernalversion, _ := host.KernelVersion()
