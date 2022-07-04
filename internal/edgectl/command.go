@@ -17,7 +17,7 @@ var (
 	}
 )
 
-func NewEdgeCtlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
+func NewEdgeCtlCommand(in io.Reader, out, err io.Writer, version string) *cobra.Command {
 	cmds := &cobra.Command{
 		Use:   "edgectl COMMAND [arg...]",
 		Short: "edgectl use to connect cloud-cluster",
@@ -33,6 +33,7 @@ func NewEdgeCtlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 	cmds.AddCommand(cmd.NewResetCMD(os.Stdout, &edgectlConf))
 	cmds.AddCommand(cmd.NewUpgradeCMD(os.Stdout, &edgectlConf))
 	cmds.AddCommand(cmd.NewInitCmd())
+	cmds.AddCommand(cmd.NewVersionCMD(version))
 	return cmds
 }
 

@@ -95,6 +95,13 @@ func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.Upgr
 	return resp, nil
 }
 
+func (e *edgelet) ListVersion(ctx context.Context, req *pb.ListVersionRequest) (*pb.ListVersionResponse, error) {
+	logrus.Info("ListVersion request:", req)
+	resp := &pb.ListVersionResponse{}
+	resp.EdgeletVersion = e.version
+	return resp, nil
+}
+
 func (e *edgelet) upgradeEdgelet(ctx context.Context, image string, shellcmds []string) *pb.Error {
 	if len(shellcmds) == 0 {
 		if len(image) == 0 {

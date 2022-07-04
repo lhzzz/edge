@@ -29,13 +29,14 @@ type edgelet struct {
 	localIPAddress     string
 	kernalVersion      string
 	OSIImage           string
+	version            string
 }
 
 const (
 	GiB = 1024 * 1024 * 1024
 )
 
-func NewEdgelet() *edgelet {
+func NewEdgelet(version string) *edgelet {
 	localaddress, _ := util.GetOutBoundIP()
 	kernalversion, _ := host.KernelVersion()
 	platform, _, _, _ := host.PlatformInformation()
@@ -50,6 +51,7 @@ func NewEdgelet() *edgelet {
 		localIPAddress: localaddress,
 		pm:             podmanager.New(config.WithIPAddress(localaddress)),
 		config:         conf,
+		version:        version,
 	}
 }
 

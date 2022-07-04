@@ -15,12 +15,12 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-func Run(runAddress string) {
-
+func Run(runAddress, version string) {
 	common.InitLogger()
+	logrus.Info("edgelet version:", version)
 
 	grpcServer := grpc.NewServer()
-	edgelet := service.NewEdgelet()
+	edgelet := service.NewEdgelet(version)
 	//健康检测
 	health := health.NewServer()
 	health.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)

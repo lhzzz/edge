@@ -8,13 +8,12 @@ cd api/edge-proto
 cd -
 
 CMD=cmd/
-
 GOARCH=$(go env GOARCH)
 echo "building in "$GOARCH
 
 for d in $(ls $CMD -l | grep ^d | awk '{print $9}')
 do 
-    go build -o bin/${GOARCH}/${d} cmd/${d}/main.go &
+    go build -o bin/${GOARCH}/${d} -ldflags="-X main.buildVersion=v${CI_PIPELINE_ID}" cmd/${d}/main.go  &
 done
 wait
 
