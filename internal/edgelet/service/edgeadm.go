@@ -63,8 +63,12 @@ func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.Upgr
 	resp := &pb.UpgradeResponse{}
 
 	logrus.Infof("updating component %s ...", req.Component)
+	if req.Component == pb.EdgeComponent_UNKNOW {
+		resp.Error = protoerr.ParamErr("Unknow Componet to upgrade")
+		return resp, nil
+	}
 
-	if req.Component == pb.EdgeComponent_COMPONENT_EDGELET {
+	if req.Component == pb.EdgeComponent_EDGELET {
 		pberr := e.upgradeEdgelet(ctx, req.Image, req.ShellCmds)
 		if pberr != nil {
 			resp.Error = pberr
@@ -72,7 +76,7 @@ func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.Upgr
 		return resp, nil
 	}
 
-	if req.Component == pb.EdgeComponent_COMPONENT_EDGECTL {
+	if req.Component == pb.EdgeComponent_EDGECTL {
 		pberr := e.upgradeEdgelet(ctx, req.Image, req.ShellCmds)
 		if pberr != nil {
 			resp.Error = pberr
@@ -80,12 +84,14 @@ func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.Upgr
 		return resp, nil
 	}
 
-	logrus.Info("Unknow component:", req.Component)
-
-	err := util.RunLinuxCommands(true, req.ShellCmds...)
-	if err != nil {
-		resp.Error = protoerr.InternalErr(err)
+	if req.Component == pb.EdgeComponent_CUSTOMIZE {
+		err := util.RunLinuxCommands(true, req.ShellCmds...)
+		if err != nil {
+			resp.Error = protoerr.InternalErr(err)
+		}
+		return resp, nil
 	}
+
 	return resp, nil
 }
 
