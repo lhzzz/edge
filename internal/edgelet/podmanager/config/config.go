@@ -1,10 +1,13 @@
 package config
 
-import "path/filepath"
+import (
+	"edge/internal/constant"
+	"path/filepath"
+)
 
 const (
 	defaultProject     = "edge"
-	defaultProjectPath = "/data/edgelet/"
+	defaultProjectPath = constant.EdgeletDurablePath
 )
 
 type Config struct {

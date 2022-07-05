@@ -29,7 +29,7 @@ type edgelet struct {
 	localIPAddress     string
 	kernalVersion      string
 	OSIImage           string
-	version            string
+	buildVersion       string
 }
 
 const (
@@ -51,7 +51,7 @@ func NewEdgelet(version string) *edgelet {
 		localIPAddress: localaddress,
 		pm:             podmanager.New(config.WithIPAddress(localaddress)),
 		config:         conf,
-		version:        version,
+		buildVersion:   version,
 	}
 }
 
@@ -236,7 +236,7 @@ func (e *edgelet) configNode() *v1.Node {
 				Architecture:            e.architecture(),
 				KernelVersion:           e.kernalVersion,
 				OSImage:                 e.OSIImage,
-				ContainerRuntimeVersion: "",
+				ContainerRuntimeVersion: e.pm.ContainerRuntimeVersion(context.Background()),
 			},
 		},
 	}

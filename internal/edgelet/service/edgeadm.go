@@ -98,7 +98,7 @@ func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.Upgr
 func (e *edgelet) ListVersion(ctx context.Context, req *pb.ListVersionRequest) (*pb.ListVersionResponse, error) {
 	logrus.Info("ListVersion request:", req)
 	resp := &pb.ListVersionResponse{}
-	resp.EdgeletVersion = e.version
+	resp.EdgeletVersion = e.buildVersion
 	return resp, nil
 }
 

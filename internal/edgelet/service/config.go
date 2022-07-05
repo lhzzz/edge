@@ -1,6 +1,7 @@
 package service
 
 import (
+	"edge/internal/constant"
 	"edge/pkg/common"
 	"edge/pkg/util"
 	"os"
@@ -17,7 +18,7 @@ type EdgeletConfig struct {
 }
 
 const (
-	configPath    = "/data/edgelet/conf"
+	configPath    = constant.EdgeletCfgPath
 	configName    = "config.json"
 	defaultConfig = `{
 		"logLevel": "INFO",

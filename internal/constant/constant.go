@@ -1,11 +1,7 @@
 package constant
 
 const (
-	EdgeNameSpace           = "edge-cluster"
-	EdgeIngress             = "edge-ingress"
-	EdgeIngressPrefixFormat = "/edge/node/%s"
-
-	VirtualKubeletDeafultPort = 80
+	EdgeNameSpace = "edge-cluster"
 )
 
 const (
@@ -14,4 +10,12 @@ const (
 
 	DockerCopyEdgectlCmd = "docker run --rm -v /root:/myapp %s cp /usr/local/bin/edgectl /myapp"
 	UpdateEdgectlCmd     = "mv /root/edgectl /usr/bin/"
+)
+
+const (
+	EdgeletDefaultAddress = ":10350"
+	EdgeletDurablePath    = "/data/edgelet/"
+	EdgeletCfgPath        = "/data/edgelet/conf"
+	EdgectlDurablePath    = "/data/edgectl/"
+	EdgectlConfPath       = "/data/edgectl/conf"
 )

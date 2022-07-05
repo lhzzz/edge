@@ -1,12 +1,13 @@
 package main
 
 import (
+	"edge/internal/constant"
 	"edge/internal/edgelet"
 	"flag"
 )
 
 var (
-	listenPort = flag.String("address", ":10350", "edgelet listen address, default is ':10350'.")
+	listenAddr = flag.String("address", constant.EdgeletDefaultAddress, "edgelet listen address, default is "+constant.EdgeletDefaultAddress)
 )
 
 var (
@@ -15,5 +16,5 @@ var (
 
 func main() {
 	flag.Parse()
-	edgelet.Run(*listenPort, buildVersion)
+	edgelet.Run(*listenAddr, buildVersion)
 }

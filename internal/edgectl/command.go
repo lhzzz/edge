@@ -4,7 +4,6 @@ import (
 	"edge/internal/edgectl/cmd"
 	"flag"
 	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -12,9 +11,7 @@ import (
 )
 
 var (
-	edgectlConf = cmd.EdgeCtlConfig{
-		EdgeletAddress: ":10350",
-	}
+	edgectlConf = cmd.NewEdgeCtlConfig()
 )
 
 func NewEdgeCtlCommand(in io.Reader, out, err io.Writer, version string) *cobra.Command {
@@ -23,17 +20,17 @@ func NewEdgeCtlCommand(in io.Reader, out, err io.Writer, version string) *cobra.
 		Short: "edgectl use to connect cloud-cluster",
 		Long:  "The edgectl is the command-line tool to control edgelet which is connect with cloud-cluster",
 		Run: func(cmd *cobra.Command, args []string) {
-
+			cmd.Help()
 		},
 	}
 
 	globalFlagSet(nil)
 	cmds.ResetFlags()
-	cmds.AddCommand(cmd.NewJoinCMD(os.Stdout, &edgectlConf))
-	cmds.AddCommand(cmd.NewResetCMD(os.Stdout, &edgectlConf))
-	cmds.AddCommand(cmd.NewUpgradeCMD(os.Stdout, &edgectlConf))
-	cmds.AddCommand(cmd.NewInitCmd())
-	cmds.AddCommand(cmd.NewVersionCMD(version))
+	cmds.AddCommand(cmd.NewJoinCMD(out, &edgectlConf))
+	cmds.AddCommand(cmd.NewResetCMD(out, &edgectlConf))
+	cmds.AddCommand(cmd.NewUpgradeCMD(out, &edgectlConf))
+	cmds.AddCommand(cmd.NewInitCmd(&edgectlConf))
+	cmds.AddCommand(cmd.NewVersionCMD(err, version, &edgectlConf))
 	return cmds
 }
 

@@ -19,6 +19,7 @@ type PodManager interface {
 	GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error)
 	DescribePodsStatus(ctx context.Context) ([]*v1.Pod, error)
 	CreateVolume(ctx context.Context, volume *pb.CreateVolumeRequest) error
+	ContainerRuntimeVersion(ctx context.Context) string
 }
 
 func New(opts ...config.Option) PodManager {

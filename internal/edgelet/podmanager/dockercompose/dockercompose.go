@@ -77,11 +77,12 @@ var (
 
 type dcpPodManager struct {
 	pmconf.Config
-	composeApi api.Service
-	dockerCli  command.Cli
-	podEvents  map[string]struct{}
-	eventMutex sync.RWMutex
-	podMutex   sync.Mutex
+	composeApi     api.Service
+	dockerCli      command.Cli
+	podEvents      map[string]struct{}
+	eventMutex     sync.RWMutex
+	podMutex       sync.Mutex
+	runtimeVersion string
 }
 
 //Docker Compose版本必须要在V2.0 以上
@@ -318,6 +319,19 @@ func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, erro
 		pods = append(pods, pod)
 	}
 	return pods, nil
+}
+
+func (d *dcpPodManager) ContainerRuntimeVersion(ctx context.Context) string {
+	if d.runtimeVersion != "" {
+		return d.runtimeVersion
+	}
+	ver, err := d.dockerCli.Client().ServerVersion(ctx)
+	if err != nil {
+		logrus.Warn("get container runtime version failed,err=", err)
+		return ""
+	}
+	d.runtimeVersion = "docker://" + ver.Version
+	return d.runtimeVersion
 }
 
 func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
