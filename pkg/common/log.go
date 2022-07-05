@@ -42,3 +42,7 @@ func InitLogger() {
 	log.Debug("debug log level")
 	log.Info("start")
 }
+
+func SetLogLevel(level string) {
+	log.SetLevel(GetLogLevel(level))
+}

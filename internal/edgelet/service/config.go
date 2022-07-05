@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -54,12 +53,12 @@ func initConfig() (*EdgeletConfig, error) {
 	ec := &EdgeletConfig{}
 	ec.CloudAddress = viper.GetString("cloudAddress")
 	ec.LogLevel = viper.GetString("logLevel")
-	logrus.SetLevel(common.GetLogLevel(ec.LogLevel))
+	common.SetLogLevel(ec.LogLevel)
 	viper.WatchConfig()
 	viper.OnConfigChange(func(in fsnotify.Event) {
 		ec.CloudAddress = viper.GetString("cloudAddress")
 		ec.LogLevel = viper.GetString("logLevel")
-		logrus.SetLevel(common.GetLogLevel(ec.LogLevel))
+		common.SetLogLevel(ec.LogLevel)
 	})
 	return ec, nil
 }
