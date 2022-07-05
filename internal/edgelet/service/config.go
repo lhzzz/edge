@@ -2,8 +2,8 @@ package service
 
 import (
 	"edge/internal/constant"
-	"edge/pkg/common"
 	"edge/pkg/util"
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -12,17 +12,20 @@ import (
 )
 
 type EdgeletConfig struct {
-	CloudAddress string
-	LogLevel     string
+	CloudAddress string `json:"cloudAddress"`
+	DiskPath     string `json:"diskPath"`
 }
 
 const (
-	configPath    = constant.EdgeletCfgPath
-	configName    = "config.json"
-	defaultConfig = `{
-		"logLevel": "INFO",
-		"cloudAddress" : "center.zhst.com"
-}`
+	configPath = constant.EdgeletCfgPath
+	configName = "config.json"
+)
+
+var (
+	defaultConfig = EdgeletConfig{
+		CloudAddress: constant.CenterDomain,
+		DiskPath:     "/",
+	}
 )
 
 func configReady(file string) error {
@@ -36,7 +39,11 @@ func configReady(file string) error {
 			return err
 		}
 		defer f.Close()
-		f.WriteString(defaultConfig)
+		data, err := json.Marshal(defaultConfig)
+		if err != nil {
+			return err
+		}
+		f.Write(data)
 	}
 	return nil
 }
@@ -51,24 +58,28 @@ func initConfig() (*EdgeletConfig, error) {
 		return nil, err
 	}
 	ec := &EdgeletConfig{}
-	ec.CloudAddress = viper.GetString("cloudAddress")
-	ec.LogLevel = viper.GetString("logLevel")
-	common.SetLogLevel(ec.LogLevel)
+	err = viper.Unmarshal(ec)
+	if err != nil {
+		return nil, err
+	}
 	viper.WatchConfig()
 	viper.OnConfigChange(func(in fsnotify.Event) {
-		ec.CloudAddress = viper.GetString("cloudAddress")
-		ec.LogLevel = viper.GetString("logLevel")
-		common.SetLogLevel(ec.LogLevel)
+		viper.Unmarshal(ec)
 	})
 	return ec, nil
 }
 
 func (ec *EdgeletConfig) Save() error {
-	if ec.CloudAddress != "" {
-		viper.Set("cloudAddress", ec.CloudAddress)
+	f, err := os.OpenFile(filepath.Join(configPath, configName), os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
 	}
-	if ec.LogLevel != "" {
-		viper.Set("logLevel", ec.LogLevel)
+	defer f.Close()
+	data, err := json.Marshal(ec)
+	if err != nil {
+		return err
 	}
+	f.Write(data)
+	f.Sync()
 	return nil
 }

@@ -5,7 +5,6 @@ import (
 	"edge/api/edge-proto/pb"
 	"edge/internal/edgelet/podmanager"
 	"edge/internal/edgelet/podmanager/config"
-	"edge/pkg/common"
 	"edge/pkg/errdefs"
 	"edge/pkg/util"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/host"
 	"github.com/shirou/gopsutil/mem"
 	log "github.com/sirupsen/logrus"
@@ -34,7 +34,9 @@ type edgelet struct {
 }
 
 const (
-	GiB = 1024 * 1024 * 1024
+	GiB                           = 1024 * 1024 * 1024
+	memPressureThreshold  float64 = 90
+	diskPressureThreshold float64 = 80
 )
 
 func NewEdgelet(version string) *edgelet {
@@ -46,7 +48,6 @@ func NewEdgelet(version string) *edgelet {
 		log.Panicf("init config %s, err=%v", configPath, err)
 	}
 	log.Info("config load success:", conf)
-	common.SetLogLevel(conf.LogLevel)
 	return &edgelet{
 		kernalVersion:  kernalversion,
 		OSIImage:       platform,
@@ -275,7 +276,6 @@ func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 func (e *edgelet) nodeConditions() []v1.NodeCondition {
 	nodeConditions := []v1.NodeCondition{}
 	//ready
-
 	nodeConditions = append(nodeConditions, v1.NodeCondition{
 		Type:               "Ready",
 		Status:             v1.ConditionTrue,
@@ -285,45 +285,45 @@ func (e *edgelet) nodeConditions() []v1.NodeCondition {
 		Message:            "Edgelet is ready.",
 	})
 
-	//disk
-	//memory
-	//network
+	ms, err := mem.VirtualMemory()
+	if err != nil {
+		log.Error("fetch mermory failed,err=", err)
+	} else {
+		memCondition := v1.NodeCondition{
+			Type:               v1.NodeMemoryPressure,
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletHasSufficientMemory",
+			Message:            "kubelet has sufficient memory available",
+		}
+		if ms.UsedPercent > memPressureThreshold {
+			memCondition.Status = v1.ConditionTrue
+			memCondition.Reason = "KubeletHasInsufficientMemory"
+			memCondition.Message = "kubelet has insufficient memory available"
+		}
+		nodeConditions = append(nodeConditions, memCondition)
+	}
 
-	// conds := []v1.NodeCondition{
-	// 	{
-	// 		Type:               "OutOfDisk",
-	// 		Status:             v1.ConditionTrue,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "KubeletHasSufficientDisk",
-	// 		Message:            "kubelet has sufficient disk space available",
-	// 	},
-	// 	{
-	// 		Type:               "MemoryPressure",
-	// 		Status:             v1.ConditionFalse,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "KubeletHasSufficientMemory",
-	// 		Message:            "kubelet has sufficient memory available",
-	// 	},
-	// 	{
-	// 		Type:               "DiskPressure",
-	// 		Status:             v1.ConditionFalse,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "KubeletHasNoDiskPressure",
-	// 		Message:            "kubelet has no disk pressure",
-	// 	},
-	// 	{
-	// 		Type:               "NetworkUnavailable",
-	// 		Status:             v1.ConditionFalse,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "RouteCreated",
-	// 		Message:            "RouteController created a route",
-	// 	},
-	// }
-	// nodeConditions = append(nodeConditions, conds...)
+	dsk, err := disk.Usage(e.config.DiskPath)
+	if err != nil {
+		log.Error("fetch dsk failed ,err=", err)
+	} else {
+		diskCondition := v1.NodeCondition{
+			Type:               v1.NodeDiskPressure,
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletHasNoDiskPressure",
+			Message:            "kubelet has no disk pressure",
+		}
+		if dsk.UsedPercent > diskPressureThreshold {
+			diskCondition.Status = v1.ConditionTrue
+			diskCondition.Reason = "KubeletHasDiskPressure"
+			diskCondition.Message = "kubelet has disk pressure"
+		}
+		nodeConditions = append(nodeConditions, diskCondition)
+	}
 	return nodeConditions
 }
 
