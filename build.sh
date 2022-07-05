@@ -19,4 +19,7 @@ do
 done
 wait
 
-ls -l bin/$GOARCH/
+for d in $(ls $CMD -l | grep ^d | awk '{print $9}')
+do 
+    ls bin/$GOARCH/${d}
+done 
