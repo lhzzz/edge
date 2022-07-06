@@ -7,7 +7,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
@@ -35,9 +34,6 @@ func NewUpgradeCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 			if cfg.EdgeletAddress == "" {
 				return fmt.Errorf("edgelet address is empty")
 			}
-			if upgradeOptions.nodeName == "" {
-				return fmt.Errorf("please enter node-name")
-			}
 			if upgradeOptions.component == "" {
 				return fmt.Errorf("please enter component")
 			}
@@ -56,8 +52,8 @@ func newUpgradeOptions() *upgradeOptions {
 }
 
 func addUpgradeFlags(flagSet *pflag.FlagSet, uo *upgradeOptions) {
-	flagSet.StringVar(&uo.nodeName, "nodeName", "", "Specify the node name.")
-	flagSet.StringVar(&uo.component, "component", "", "Specify the component to upgrade.")
+	flagSet.StringVar(&uo.nodeName, "nodeName", "", "Specify the node name to upgrade the edgeNode component.")
+	flagSet.StringVar(&uo.component, "component", "", "Specify the component to upgrade")
 	flagSet.StringVar(&uo.image, "image", "", "Specify the image to upgrade component.")
 	flagSet.StringArrayVar(&uo.shellCmds, "cmd", nil, "Customize the upgrade shell command.")
 	flagSet.MarkHidden("cmd")
@@ -66,7 +62,6 @@ func addUpgradeFlags(flagSet *pflag.FlagSet, uo *upgradeOptions) {
 func upgradeRunner(edgeletAddress string, opt *upgradeOptions) error {
 	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure())
 	if err != nil {
-		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
 		return err
 	}
 	client := pb.NewEdgeadmClient(conn)
@@ -81,14 +76,13 @@ func upgradeRunner(edgeletAddress string, opt *upgradeOptions) error {
 		Image:     opt.image,
 		ShellCmds: opt.shellCmds,
 	}
-	logrus.Info("Upgrade request:", req)
 	resp, err := client.Upgrade(ctx, req)
 	if err != nil {
-		logrus.Error("Upgrade failed,err=", err)
 		return err
 	}
 	if resp.Error != nil {
 		return fmt.Errorf(resp.Error.Msg)
 	}
+	fmt.Printf("Upgrade Component %s Success !\n", opt.component)
 	return nil
 }

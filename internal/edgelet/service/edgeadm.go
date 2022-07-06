@@ -85,7 +85,7 @@ func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.Upgr
 	}
 
 	if req.Component == pb.EdgeComponent_CUSTOMIZE {
-		err := util.RunLinuxCommands(true, req.ShellCmds...)
+		err := util.RunLinuxCommands(false, req.ShellCmds...)
 		if err != nil {
 			resp.Error = protoerr.InternalErr(err)
 		}
@@ -108,12 +108,12 @@ func (e *edgelet) upgradeEdgelet(ctx context.Context, image string, shellcmds []
 			return protoerr.ParamErr("image is empty")
 		}
 		dockerRunCmd := fmt.Sprintf(constant.DockerCopyEdgeletCmd, image)
-		err := util.RunLinuxCommands(true, dockerRunCmd, constant.UpdageEdgeletCmd)
+		err := util.RunLinuxCommands(false, dockerRunCmd, constant.UpdageEdgeletCmd)
 		if err != nil {
 			return protoerr.InternalErr(err)
 		}
 	} else {
-		err := util.RunLinuxCommands(true, shellcmds...)
+		err := util.RunLinuxCommands(false, shellcmds...)
 		if err != nil {
 			return protoerr.InternalErr(err)
 		}
@@ -127,12 +127,12 @@ func (e *edgelet) upgradeEdgectl(ctx context.Context, image string, shellcmds []
 			return protoerr.ParamErr("image is empty")
 		}
 		dockerRunCmd := fmt.Sprintf(constant.DockerCopyEdgectlCmd, image)
-		err := util.RunLinuxCommands(true, dockerRunCmd, constant.UpdateEdgectlCmd)
+		err := util.RunLinuxCommands(false, dockerRunCmd, constant.UpdateEdgectlCmd)
 		if err != nil {
 			return protoerr.InternalErr(err)
 		}
 	} else {
-		err := util.RunLinuxCommands(true, shellcmds...)
+		err := util.RunLinuxCommands(false, shellcmds...)
 		if err != nil {
 			return protoerr.InternalErr(err)
 		}
