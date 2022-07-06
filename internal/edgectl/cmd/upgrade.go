@@ -7,10 +7,18 @@ import (
 	"io"
 	"strings"
 
+	"github.com/lithammer/dedent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+)
+
+var (
+	edgeletUpgradeDescription = dedent.Dedent(`
+	when upgrade edgelet match error 'signal: terminated', it might be edgelet is upgrading itself.
+	can use 'edgectl version' to check version later
+	`)
 )
 
 type upgradeOptions struct {
@@ -19,11 +27,13 @@ type upgradeOptions struct {
 	image     string   //镜像的名字
 	shellCmds []string //自定义命令
 	writer    io.Writer
+	stderr    io.Writer
 }
 
-func NewUpgradeCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
+func NewUpgradeCMD(out, stderr io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 	upgradeOptions := newUpgradeOptions()
 	upgradeOptions.writer = out
+	upgradeOptions.stderr = stderr
 	cmd := &cobra.Command{
 		Use:   "upgrade",
 		Short: "upgrade a component on edge",
@@ -62,7 +72,8 @@ func addUpgradeFlags(flagSet *pflag.FlagSet, uo *upgradeOptions) {
 func upgradeRunner(edgeletAddress string, opt *upgradeOptions) error {
 	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure())
 	if err != nil {
-		return err
+		fmt.Fprintf(opt.stderr, "connect edgeletAddress %s failed, err=%v\n", edgeletAddress, err)
+		return nil
 	}
 	client := pb.NewEdgeadmClient(conn)
 
@@ -78,10 +89,15 @@ func upgradeRunner(edgeletAddress string, opt *upgradeOptions) error {
 	}
 	resp, err := client.Upgrade(ctx, req)
 	if err != nil {
-		return err
+		fmt.Fprintf(opt.stderr, "upgrade %s match %v\n", opt.component, err)
+		if component == pb.EdgeComponent_EDGELET {
+			fmt.Println(edgeletUpgradeDescription)
+		}
+		return nil
 	}
 	if resp.Error != nil {
-		return fmt.Errorf(resp.Error.Msg)
+		fmt.Fprintf(opt.stderr, "upgrade %s failed, err= %v\n", opt.component, resp.Error.Msg)
+		return nil
 	}
 	fmt.Printf("Upgrade Component %s Success !\n", opt.component)
 	return nil

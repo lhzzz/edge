@@ -6,19 +6,22 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
+)
+
+var (
+	resetWorkerNodeDoneMsg = "This node has reset from the cluster"
 )
 
 type resetOptions struct {
 	writer io.Writer
 }
 
-func NewResetCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
+func NewResetCMD(stderr io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 	resetOptions := newResetOptions()
-	resetOptions.writer = out
+	resetOptions.writer = stderr
 	cmd := &cobra.Command{
 		Use:   "reset",
 		Short: "Performs a best effort revert of changes made to this host by 'edgectl join'",
@@ -50,17 +53,19 @@ func addResetFlags(flagSet *pflag.FlagSet, ro *resetOptions) {
 func resetRunner(edgeletAddress string, opt *resetOptions) error {
 	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure())
 	if err != nil {
-		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
-		return err
+		fmt.Fprintf(opt.writer, "connect edgeletAddress %s failed, err=%v\n", edgeletAddress, err)
+		return nil
 	}
 	client := pb.NewEdgeadmClient(conn)
 	resp, err := client.Reset(context.Background(), &pb.ResetRequest{})
 	if err != nil {
-		logrus.Error("Reset failed,err=", err)
-		return err
+		fmt.Fprintln(opt.writer, err)
+		return nil
 	}
 	if resp.Error != nil {
-		return fmt.Errorf(resp.Error.Msg)
+		fmt.Fprintln(opt.writer, resp.Error.Msg)
+		return nil
 	}
+	fmt.Println(resetWorkerNodeDoneMsg)
 	return nil
 }

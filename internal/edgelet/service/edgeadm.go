@@ -32,16 +32,18 @@ func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinRespon
 	e.configMutex.Unlock()
 	conn, err := grpc.Dial(e.config.RegistryAddress, grpc.WithInsecure()) //grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		logrus.Errorf("grpc.Dial %s failed, err=%v:", e.config.RegistryAddress, err)
+		logrus.Errorf("grpc.Dial %s failed, err=%v", e.config.RegistryAddress, err)
 		return nil, err
 	}
 	client := pb.NewEdgeRegistryServiceClient(conn)
 	if e.config.NodeName != "" && e.config.NodeName != req.NodeName {
 		getrsp, err := client.GetNode(ctx, &pb.GetNodeRequest{NodeName: e.config.NodeName})
 		if err != nil {
+			logrus.Errorf("GetNode failed, err=%v", err)
 			return resp, err
 		}
 		if getrsp.Error != nil {
+			logrus.Errorf("GetNode failed, pberr=%v", getrsp.Error)
 			if !protoerr.IsNotFoundErr(getrsp.Error) {
 				resp.Error = getrsp.Error
 				return resp, nil
@@ -83,6 +85,7 @@ func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetRes
 	client := pb.NewEdgeRegistryServiceClient(conn)
 	delresp, err := client.DeleteNode(ctx, &pb.DeleteNodeRequest{NodeName: e.config.NodeName})
 	if err != nil {
+		logrus.Errorf("DeleteNode failed, err=%v", err)
 		return nil, err
 	}
 	resp.Error = delresp.Error

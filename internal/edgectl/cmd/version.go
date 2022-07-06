@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
@@ -57,18 +56,18 @@ func versionRunner(stderr io.Writer, edgeletAddress string, vo *versionOptions) 
 	ver := version{}
 	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure())
 	if err != nil {
-		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
-		return err
+		fmt.Fprintf(stderr, "connect edgeletAddress %s failed, err=%v\n", edgeletAddress, err)
+		return nil
 	}
 	client := pb.NewEdgeadmClient(conn)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), "node", vo.nodeName)
 	resp, err := client.ListVersion(ctx, &pb.ListVersionRequest{})
 	if err != nil {
-		fmt.Fprintln(stderr, "listVersion failed,err=", err)
+		fmt.Fprintln(stderr, "get edgelet vrsion failed,err=", err)
 		goto END
 	}
 	if resp.Error != nil {
-		fmt.Fprintln(stderr, "listVersion failed,err=", resp.Error.Msg)
+		fmt.Fprintln(stderr, "get edgelet version failed,err=", resp.Error.Msg)
 		goto END
 	}
 	ver.EdgeletVersion = resp.EdgeletVersion

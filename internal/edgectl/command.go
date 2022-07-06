@@ -30,9 +30,9 @@ func NewEdgeCtlCommand(in io.Reader, stdout, stderr io.Writer, version string) *
 	edgectlConf = conf
 	globalFlagSet(nil)
 	cmds.ResetFlags()
-	cmds.AddCommand(cmd.NewJoinCMD(stdout, edgectlConf))
-	cmds.AddCommand(cmd.NewResetCMD(stdout, edgectlConf))
-	cmds.AddCommand(cmd.NewUpgradeCMD(stdout, edgectlConf))
+	cmds.AddCommand(cmd.NewJoinCMD(stdout, stderr, edgectlConf))
+	cmds.AddCommand(cmd.NewResetCMD(stderr, edgectlConf))
+	cmds.AddCommand(cmd.NewUpgradeCMD(stdout, stderr, edgectlConf))
 	cmds.AddCommand(cmd.NewInitCmd(edgectlConf))
 	cmds.AddCommand(cmd.NewVersionCMD(stderr, version, edgectlConf))
 	return cmds
