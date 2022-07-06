@@ -16,7 +16,5 @@ const (
 const (
 	EdgeletDefaultAddress = ":10350"
 	EdgeletDurablePath    = "/data/edgelet/"
-	EdgeletCfgPath        = "/data/edgelet/conf"
-	EdgectlDurablePath    = "/data/edgectl/"
-	EdgectlConfPath       = "/data/edgectl/conf"
+	EdgeletCfgPath        = "/data/edgelet/.conf"
 )

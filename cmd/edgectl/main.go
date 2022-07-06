@@ -14,6 +14,8 @@ var (
 )
 
 func main() {
+	defer app.Quit()
+
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 	cmd := app.NewEdgeCtlCommand(os.Stdin, os.Stdout, os.Stderr, buildVersion)

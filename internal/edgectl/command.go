@@ -1,7 +1,6 @@
 package edgectl
 
 import (
-	"edge/internal/constant"
 	"edge/internal/edgectl/cmd"
 	"flag"
 	"io"
@@ -12,10 +11,10 @@ import (
 )
 
 var (
-	edgectlConf = cmd.NewEdgeCtlConfig()
+	edgectlConf *cmd.EdgeCtlConfig
 )
 
-func NewEdgeCtlCommand(in io.Reader, out, err io.Writer, version string) *cobra.Command {
+func NewEdgeCtlCommand(in io.Reader, stdout, stderr io.Writer, version string) *cobra.Command {
 	cmds := &cobra.Command{
 		Use:   "edgectl COMMAND [arg...]",
 		Short: "edgectl use to connect cloud-cluster",
@@ -24,22 +23,30 @@ func NewEdgeCtlCommand(in io.Reader, out, err io.Writer, version string) *cobra.
 			cmd.Help()
 		},
 	}
-
+	conf, err := cmd.NewEdgeCtlConfig()
+	if err != nil {
+		panic(err)
+	}
+	edgectlConf = conf
 	globalFlagSet(nil)
 	cmds.ResetFlags()
-	cmds.AddCommand(cmd.NewJoinCMD(out, &edgectlConf))
-	cmds.AddCommand(cmd.NewResetCMD(out, &edgectlConf))
-	cmds.AddCommand(cmd.NewUpgradeCMD(out, &edgectlConf))
-	cmds.AddCommand(cmd.NewInitCmd(&edgectlConf))
-	cmds.AddCommand(cmd.NewVersionCMD(err, version, &edgectlConf))
+	cmds.AddCommand(cmd.NewJoinCMD(stdout, edgectlConf))
+	cmds.AddCommand(cmd.NewResetCMD(stdout, edgectlConf))
+	cmds.AddCommand(cmd.NewUpgradeCMD(stdout, edgectlConf))
+	cmds.AddCommand(cmd.NewInitCmd(edgectlConf))
+	cmds.AddCommand(cmd.NewVersionCMD(stderr, version, edgectlConf))
 	return cmds
+}
+
+func Quit() {
+	edgectlConf.Save()
 }
 
 func globalFlagSet(flagset *flag.FlagSet) {
 	if flagset == nil {
 		flagset = flag.CommandLine
 	}
-	flagset.StringVar(&edgectlConf.EdgeletAddress, "edgelet-address", constant.EdgeletDefaultAddress, "connect edgelet to communicate cloud-cluster")
+	flagset.StringVar(&edgectlConf.EdgeletAddress, "edgelet-address", edgectlConf.EdgeletAddress, "connect edgelet to communicate cloud-cluster")
 	pflag.CommandLine.AddGoFlagSet(flagset)
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 	flag.Parse()
