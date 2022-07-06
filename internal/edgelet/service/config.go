@@ -4,16 +4,15 @@ import (
 	"edge/internal/constant"
 	"edge/pkg/util"
 	"encoding/json"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/viper"
 )
 
 type EdgeletConfig struct {
-	CloudAddress string `json:"cloudAddress"`
-	DiskPath     string `json:"diskPath"`
+	RegistryAddress string `json:"registryAddress"`
+	DiskPath        string `json:"diskPath"`
+	NodeName        string `json:"nodeName"`
 }
 
 const (
@@ -23,8 +22,8 @@ const (
 
 var (
 	defaultConfig = EdgeletConfig{
-		CloudAddress: constant.CenterDomain,
-		DiskPath:     "/",
+		RegistryAddress: constant.CenterDomain,
+		DiskPath:        "/",
 	}
 )
 
@@ -50,22 +49,25 @@ func configReady(file string) error {
 
 func initConfig() (*EdgeletConfig, error) {
 	configfile := filepath.Join(configPath, configName)
-	configReady(configfile)
-	viper.SetConfigFile(configfile)
-	viper.SetConfigType("json")
-	err := viper.ReadInConfig()
-	if err != nil {
+	if err := configReady(configfile); err != nil {
 		return nil, err
 	}
+
 	ec := &EdgeletConfig{}
-	err = viper.Unmarshal(ec)
+	f, err := os.OpenFile(configfile, os.O_RDONLY, 0755)
 	if err != nil {
 		return nil, err
 	}
-	viper.WatchConfig()
-	viper.OnConfigChange(func(in fsnotify.Event) {
-		viper.Unmarshal(ec)
-	})
+	defer f.Close()
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(data, ec)
+	if err != nil {
+		return nil, err
+	}
 	return ec, nil
 }
 

@@ -15,28 +15,55 @@ import (
 func (e *edgelet) Join(ctx context.Context, req *pb.JoinRequest) (*pb.JoinResponse, error) {
 	logrus.Info("Join Request:", req)
 	resp := &pb.JoinResponse{}
-	if req.CloudAddress == "" && e.config.CloudAddress == "" {
+	if req.CloudAddress == "" && e.config.RegistryAddress == "" {
 		resp.Error = protoerr.ParamErr("cloudaddress is empty")
 		return resp, nil
 	}
-	e.addressMutex.Lock()
-	if req.CloudAddress != "" {
-		e.config.CloudAddress = req.CloudAddress
+
+	if req.NodeName == "" {
+		resp.Error = protoerr.ParamErr("nodeName is empty")
+		return resp, nil
 	}
-	e.addressMutex.Unlock()
-	conn, err := grpc.Dial(e.config.CloudAddress, grpc.WithInsecure()) //grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	e.configMutex.Lock()
+	if req.CloudAddress != "" {
+		e.config.RegistryAddress = req.CloudAddress
+	}
+	e.configMutex.Unlock()
+	conn, err := grpc.Dial(e.config.RegistryAddress, grpc.WithInsecure()) //grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		logrus.Errorf("grpc.Dial %s failed, err=%v:", e.config.CloudAddress, err)
+		logrus.Errorf("grpc.Dial %s failed, err=%v:", e.config.RegistryAddress, err)
 		return nil, err
 	}
 	client := pb.NewEdgeRegistryServiceClient(conn)
-	cnresp, err := client.CreateNode(context.Background(), &pb.CreateNodeRequest{NodeName: req.NodeName})
+	if e.config.NodeName != "" && e.config.NodeName != req.NodeName {
+		getrsp, err := client.GetNode(ctx, &pb.GetNodeRequest{NodeName: e.config.NodeName})
+		if err != nil {
+			return resp, err
+		}
+		if getrsp.Error != nil {
+			if !protoerr.IsNotFoundErr(getrsp.Error) {
+				resp.Error = getrsp.Error
+				return resp, nil
+			}
+		} else {
+			msg := fmt.Sprintf("The last nodeName %s has already exist in cluster, Please reset it before new join.", e.config.NodeName)
+			resp.Error = protoerr.ParamErr(msg)
+			return resp, nil
+		}
+	}
+
+	cnresp, err := client.CreateNode(ctx, &pb.CreateNodeRequest{NodeName: req.NodeName})
 	if err != nil {
 		logrus.Error("CreateNode in Join failed,err=", err)
 		return nil, err
 	}
 	resp.Error = cnresp.Error
 	resp.Exist = cnresp.Exist
+	e.configMutex.Lock()
+	e.config.NodeName = req.NodeName
+	e.config.Save()
+	e.configMutex.Unlock()
 	return resp, nil
 }
 
@@ -44,13 +71,17 @@ func (e *edgelet) Reset(ctx context.Context, req *pb.ResetRequest) (*pb.ResetRes
 	logrus.Info("Reset Request:", req)
 	resp := &pb.ResetResponse{}
 
-	conn, err := grpc.Dial(e.config.CloudAddress, grpc.WithInsecure()) //grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if e.config.NodeName == "" {
+		resp.Error = protoerr.ParamErr("should to join before reset")
+	}
+
+	conn, err := grpc.Dial(e.config.RegistryAddress, grpc.WithInsecure()) //grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		logrus.Error("connect failed,cloudAddress:", e.config.CloudAddress, " err:", err)
+		logrus.Error("connect failed,cloudAddress:", e.config.RegistryAddress, " err:", err)
 		return nil, err
 	}
 	client := pb.NewEdgeRegistryServiceClient(conn)
-	delresp, err := client.DeleteNode(context.Background(), &pb.DeleteNodeRequest{NodeName: req.NodeName})
+	delresp, err := client.DeleteNode(ctx, &pb.DeleteNodeRequest{NodeName: e.config.NodeName})
 	if err != nil {
 		return nil, err
 	}

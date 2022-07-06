@@ -23,7 +23,7 @@ import (
 
 type edgelet struct {
 	config             *EdgeletConfig
-	addressMutex       sync.Mutex
+	configMutex        sync.Mutex
 	pm                 podmanager.PodManager
 	lastHeartbeatTime  metav1.Time
 	lastTransitionTime metav1.Time

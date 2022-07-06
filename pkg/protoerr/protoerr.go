@@ -27,3 +27,14 @@ func StreamFinishErr(msg string) *pb.Error {
 		Msg:  msg,
 	}
 }
+
+func NotFoundErr(msg string) *pb.Error {
+	return &pb.Error{
+		Code: pb.ErrorCode_NO_RESULT,
+		Msg:  msg,
+	}
+}
+
+func IsNotFoundErr(perr *pb.Error) bool {
+	return perr.Code == pb.ErrorCode_NO_RESULT
+}

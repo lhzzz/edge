@@ -13,8 +13,7 @@ import (
 )
 
 type resetOptions struct {
-	nodeName string //node的名字
-	writer   io.Writer
+	writer io.Writer
 }
 
 func NewResetCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
@@ -30,9 +29,6 @@ func NewResetCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 			if cfg.EdgeletAddress == "" {
 				return fmt.Errorf("edgelet address is empty")
 			}
-			if resetOptions.nodeName == "" {
-				return fmt.Errorf("please enter node-name")
-			}
 			return nil
 		},
 	}
@@ -45,10 +41,10 @@ func newResetOptions() *resetOptions {
 }
 
 func addResetFlags(flagSet *pflag.FlagSet, ro *resetOptions) {
-	flagSet.StringVar(
-		&ro.nodeName, "node-name", "",
-		"Specify the node name.",
-	)
+	// flagSet.StringVar(
+	// 	&ro.nodeName, "node-name", "",
+	// 	"Specify the node name.",
+	// )
 }
 
 func resetRunner(edgeletAddress string, opt *resetOptions) error {
@@ -58,9 +54,7 @@ func resetRunner(edgeletAddress string, opt *resetOptions) error {
 		return err
 	}
 	client := pb.NewEdgeadmClient(conn)
-	resp, err := client.Reset(context.Background(), &pb.ResetRequest{
-		NodeName: opt.nodeName,
-	})
+	resp, err := client.Reset(context.Background(), &pb.ResetRequest{})
 	if err != nil {
 		logrus.Error("Reset failed,err=", err)
 		return err
