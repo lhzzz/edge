@@ -89,14 +89,14 @@ func upgradeRunner(edgeletAddress string, opt *upgradeOptions) error {
 	}
 	resp, err := client.Upgrade(ctx, req)
 	if err != nil {
-		fmt.Fprintf(opt.stderr, "upgrade %s match %v\n", opt.component, err)
-		if component == pb.EdgeComponent_EDGELET {
-			fmt.Println(edgeletUpgradeDescription)
-		}
+		fmt.Fprintf(opt.stderr, "upgrade %s match err=%v\n", opt.component, err)
 		return nil
 	}
 	if resp.Error != nil {
-		fmt.Fprintf(opt.stderr, "upgrade %s failed, err= %v\n", opt.component, resp.Error.Msg)
+		fmt.Fprintf(opt.stderr, "upgrade %s failed, err=%v\n", opt.component, resp.Error.Msg)
+		if component == pb.EdgeComponent_EDGELET {
+			fmt.Println(edgeletUpgradeDescription)
+		}
 		return nil
 	}
 	fmt.Printf("Upgrade Component %s Success !\n", opt.component)
