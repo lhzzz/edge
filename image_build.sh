@@ -2,7 +2,7 @@
 set -e
 
 CMD=cmd/
-BIN=bin/
+BIN=bin
 DOCKERFILE=build/docker
 REGISTRY=registry.zhst.com
 VERSION=v1.
@@ -25,9 +25,8 @@ then
             fi
             docker buildx build --platform ${PLATFORM} -t ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID} ${DOCKERFILE}/${d}/mutiple/ --push
         fi
-    }&
+    }
     done
-    wait
     for d in $(ls $CMD -l | grep ^d | awk '{print $9}')
     do
         echo ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID}
@@ -38,7 +37,7 @@ else
     for d in $(ls $CMD -l | grep ^d | awk '{print $9}')
     do 
         if [ "$(ls ${DOCKERFILE}/${d})" ]; then 
-            cp ${BIN}${GOARCH}/${d} ${DOCKERFILE}/${d}/single
+            cp ${BIN}/${GOARCH}/${d} ${DOCKERFILE}/${d}/single
             docker build -t ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:local ${DOCKERFILE}/${d}/single/
             rm ${DOCKERFILE}/${d}/single/${d}
         fi
