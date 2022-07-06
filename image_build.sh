@@ -5,7 +5,7 @@ CMD=cmd/
 BIN=bin
 DOCKERFILE=build/docker
 REGISTRY=registry.zhst.com
-VERSION=v1.
+VERSION=v
 
 if [[ $1 == "cicd" ]]
 then
