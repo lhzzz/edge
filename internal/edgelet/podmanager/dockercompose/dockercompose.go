@@ -64,15 +64,6 @@ var (
 
 	//init-container dependency
 	serviceCompeleteDependency = types.ServiceDependency{Condition: types.ServiceConditionCompletedSuccessfully}
-
-	//Pending Container
-	pendingContainerState = v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: string(pendingReason)}}
-
-	//default fields entry
-	k8sManagerFieldsEntry = []metav1.ManagedFieldsEntry{
-		{Manager: "kube-controller-manager", Operation: metav1.ManagedFieldsOperationUpdate, APIVersion: "v1"},
-		{Manager: "virtual-kubelet", Operation: metav1.ManagedFieldsOperationUpdate, APIVersion: "v1"},
-	}
 )
 
 type dcpPodManager struct {
