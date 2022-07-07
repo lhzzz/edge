@@ -120,7 +120,7 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 
 func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) error {
 	for _, v := range req.Vols {
-		logrus.Info("CreateVolume", v)
+		logrus.Info("CreateVolume ", v.Name)
 		switch vol := v.Volumn.(type) {
 		case *pb.EdgeVolume_EmptyDir:
 			path := filepath.Join(d.EmptyDirRoot(), v.Name)
