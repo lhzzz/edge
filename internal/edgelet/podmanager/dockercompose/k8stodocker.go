@@ -12,6 +12,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const (
+	k8sappLabel = "k8s-app"
+	appLabel    = "app"
+)
+
 type dockerComposeProject struct {
 	pod    *v1.Pod
 	config config.Config
@@ -135,13 +140,15 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Scale = 1
 	svrconf.Ports = dcpp.toPort(container)
 	aliasNames := make([]string, 0)
+	serviceName := ""
 	if !isInit {
-		if len(dcpp.pod.OwnerReferences) > 0 {
-			own := dcpp.pod.OwnerReferences[0]
-			if own.Kind != "Job" {
-				aliasNames = append(aliasNames, own.Name)
-			}
+		serviceName = dcpp.pod.Labels[k8sappLabel]
+		if serviceName == "" {
+			serviceName = dcpp.pod.Labels[appLabel]
 		}
+	}
+	if serviceName != "" {
+		aliasNames = append(aliasNames, serviceName)
 	}
 	netfield, _ := makeNetworkName(dcpp.config.Project)
 	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}

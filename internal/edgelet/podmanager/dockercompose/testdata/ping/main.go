@@ -3,6 +3,7 @@ package main
 import (
 	"edge/pkg/util"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,7 +14,7 @@ func main() {
 	r := gin.Default()
 	r.GET("/ping", healthCheck)
 
-	go r.Run(":80")
+	go r.Run(os.Args[1])
 	<-stopch
 }
 
