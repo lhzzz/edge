@@ -12,6 +12,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const (
+	k8sappLabel = "k8s-app"
+	appLabel    = "app"
+)
+
 type dockerComposeProject struct {
 	pod    *v1.Pod
 	config config.Config
@@ -131,17 +136,19 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Environment = dcpp.toEnv(container)
 	svrconf.HealthCheck = dcpp.toHealthCheck(container)
 	svrconf.PullPolicy = types.PullPolicyIfNotPresent
-	svrconf.Restart = types.RestartPolicyOnFailure //+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
+	svrconf.Restart = types.RestartPolicyAlways //types.RestartPolicyOnFailure+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = dcpp.toPort(container)
 	aliasNames := make([]string, 0)
+	serviceName := ""
 	if !isInit {
-		if len(dcpp.pod.OwnerReferences) > 0 {
-			own := dcpp.pod.OwnerReferences[0]
-			if own.Kind != "Job" {
-				aliasNames = append(aliasNames, own.Name)
-			}
+		serviceName = dcpp.pod.Labels[k8sappLabel]
+		if serviceName == "" {
+			serviceName = dcpp.pod.Labels[appLabel]
 		}
+	}
+	if serviceName != "" {
+		aliasNames = append(aliasNames, serviceName)
 	}
 	netfield, _ := makeNetworkName(dcpp.config.Project)
 	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}
@@ -155,7 +162,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 func (dcpp *dockerComposeProject) services() types.Services {
 	services := types.Services{}
 	lastServiceName := ""
-	initServiceNames := []string{}
+	initServiceNames := make([]string, len(dcpp.pod.Spec.InitContainers))
 	for i, ic := range dcpp.pod.Spec.InitContainers {
 		svrconf := dcpp.toService(ic, true)
 		if i != 0 {
@@ -165,7 +172,7 @@ func (dcpp *dockerComposeProject) services() types.Services {
 		}
 		lastServiceName = svrconf.Name
 		services = append(services, svrconf)
-		initServiceNames = append(initServiceNames, svrconf.Name)
+		initServiceNames[i] = svrconf.Name
 	}
 	for i, c := range dcpp.pod.Spec.Containers {
 		svrconf := dcpp.toService(c, false)

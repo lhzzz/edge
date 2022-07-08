@@ -31,7 +31,7 @@ spec:
         - --nodename={{.NodeName}}
         - --provider-config=/home/vk-config/cci.toml
         - --provider=zhst
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         env:
         - name: JAEGER_AGENT_ENDPOINT
           value: jaeger-agent:6831

@@ -62,3 +62,11 @@ func deleteEdgeNode(ctx context.Context, nodeName string) error {
 	}
 	return nil
 }
+
+func existEdgeNode(ctx context.Context, nodeName string) bool {
+	_, err := k8sClient().CoreV1().Nodes().Get(ctx, nodeName, v1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return true
+}

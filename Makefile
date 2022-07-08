@@ -17,4 +17,4 @@ ci_image:
 	@chmod +x image_build.sh && ./image_build.sh cicd
 
 clean:
-	@rm -rf api/edge-proto/pb/* bin/*
+	@rm -rf api/edge-proto/pb/* bin/amd64/*  bin/arm64/*

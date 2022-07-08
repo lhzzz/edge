@@ -6,20 +6,22 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 )
 
+var (
+	resetWorkerNodeDoneMsg = "This node has reset from the cluster"
+)
+
 type resetOptions struct {
-	nodeName string //node的名字
-	writer   io.Writer
+	writer io.Writer
 }
 
-func NewResetCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
+func NewResetCMD(stderr io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 	resetOptions := newResetOptions()
-	resetOptions.writer = out
+	resetOptions.writer = stderr
 	cmd := &cobra.Command{
 		Use:   "reset",
 		Short: "Performs a best effort revert of changes made to this host by 'edgectl join'",
@@ -29,9 +31,6 @@ func NewResetCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if cfg.EdgeletAddress == "" {
 				return fmt.Errorf("edgelet address is empty")
-			}
-			if resetOptions.nodeName == "" {
-				return fmt.Errorf("please enter node-name")
 			}
 			return nil
 		},
@@ -45,28 +44,28 @@ func newResetOptions() *resetOptions {
 }
 
 func addResetFlags(flagSet *pflag.FlagSet, ro *resetOptions) {
-	flagSet.StringVar(
-		&ro.nodeName, "node-name", "",
-		"Specify the node name.",
-	)
+	// flagSet.StringVar(
+	// 	&ro.nodeName, "node-name", "",
+	// 	"Specify the node name.",
+	// )
 }
 
 func resetRunner(edgeletAddress string, opt *resetOptions) error {
 	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure())
 	if err != nil {
-		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
-		return err
+		fmt.Fprintf(opt.writer, "connect edgeletAddress %s failed, err=%v\n", edgeletAddress, err)
+		return nil
 	}
 	client := pb.NewEdgeadmClient(conn)
-	resp, err := client.Reset(context.Background(), &pb.ResetRequest{
-		NodeName: opt.nodeName,
-	})
+	resp, err := client.Reset(context.Background(), &pb.ResetRequest{})
 	if err != nil {
-		logrus.Error("Reset failed,err=", err)
-		return err
+		fmt.Fprintln(opt.writer, err)
+		return nil
 	}
 	if resp.Error != nil {
-		return fmt.Errorf(resp.Error.Msg)
+		fmt.Fprintln(opt.writer, resp.Error.Msg)
+		return nil
 	}
+	fmt.Println(resetWorkerNodeDoneMsg)
 	return nil
 }

@@ -7,9 +7,19 @@ cd api/edge-proto
 ./make_pb.sh $APIDIR/pb $APIDIR/proto
 cd -
 
-go build -o bin/edgelet cmd/edgelet/main.go &
-go build -o bin/edgectl cmd/edgectl/main.go &
-go build -o bin/edge-registry cmd/edge-registry/main.go &
+CMD=cmd/
+GOARCH=$(go env GOARCH)
+echo "building in "$GOARCH
+
+for d in $(ls $CMD -l | grep ^d | awk '{print $9}')
+do
+{
+    go build -o bin/${GOARCH}/${d} -ldflags="-X main.buildVersion=v${CI_PIPELINE_ID}" cmd/${d}/main.go
+}&
+done
 wait
 
-ls -l bin/
+for d in $(ls $CMD -l | grep ^d | awk '{print $9}')
+do 
+    ls bin/$GOARCH/${d}
+done 

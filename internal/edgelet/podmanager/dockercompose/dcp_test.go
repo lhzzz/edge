@@ -16,8 +16,8 @@ import (
 	"github.com/docker/compose/v2/pkg/api"
 	moby "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/sanathkr/go-yaml"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

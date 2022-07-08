@@ -1,10 +1,13 @@
 package config
 
-import "path/filepath"
+import (
+	"edge/internal/constant"
+	"path/filepath"
+)
 
 const (
 	defaultProject     = "edge"
-	defaultProjectPath = "/data/docker-compose/"
+	defaultProjectPath = constant.EdgeletDurablePath
 )
 
 type Config struct {
