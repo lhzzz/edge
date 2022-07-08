@@ -162,7 +162,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 func (dcpp *dockerComposeProject) services() types.Services {
 	services := types.Services{}
 	lastServiceName := ""
-	initServiceNames := []string{}
+	initServiceNames := make([]string, len(dcpp.pod.Spec.InitContainers))
 	for i, ic := range dcpp.pod.Spec.InitContainers {
 		svrconf := dcpp.toService(ic, true)
 		if i != 0 {
@@ -172,7 +172,7 @@ func (dcpp *dockerComposeProject) services() types.Services {
 		}
 		lastServiceName = svrconf.Name
 		services = append(services, svrconf)
-		initServiceNames = append(initServiceNames, svrconf.Name)
+		initServiceNames[i] = svrconf.Name
 	}
 	for i, c := range dcpp.pod.Spec.Containers {
 		svrconf := dcpp.toService(c, false)

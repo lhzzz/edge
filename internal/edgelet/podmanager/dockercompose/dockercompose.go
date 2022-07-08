@@ -425,6 +425,7 @@ func podnameFilter(podname string) filters.KeyValuePair {
 	return filters.Arg("label", fmt.Sprintf("%s=%s", k8sPodNameLabel, podname))
 }
 
+//只支持查询一个service
 func getDefaultFilters(projectName string, selectedServices ...string) []filters.KeyValuePair {
 	f := []filters.KeyValuePair{projectFilter(projectName)}
 	if len(selectedServices) == 1 {
