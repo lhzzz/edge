@@ -285,6 +285,7 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 		Since:      opts.SinceTime,
 		Timestamps: opts.Timestamps,
 		Details:    true,
+		Follow:     opts.Follow,
 	}
 	if opts.Tail > 0 {
 		mopts.Tail = fmt.Sprint(opts.Tail)
