@@ -196,7 +196,7 @@ Available Commands:
   version     Show the version of the edge component
 
 Flags:
-      --edgelet-address string   connect edgelet to communicate cloud-cluster (default "10.0.0.122:10350")
+      --edgelet-address string   connect edgelet to communicate cloud-cluster (default ":10350")
   -h, --help                     help for edgectl
 
 Additional help topics:
