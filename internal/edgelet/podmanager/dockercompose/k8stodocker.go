@@ -17,6 +17,12 @@ const (
 	appLabel    = "app"
 )
 
+const (
+	networkModeHost        = "host"
+	networkModeBridge      = "bridge"
+	networkModeServiceRely = "service:"
+)
+
 type dockerComposeProject struct {
 	pod    *v1.Pod
 	config config.Config
@@ -124,6 +130,19 @@ func (dcpp *dockerComposeProject) toPort(container v1.Container) []types.Service
 	return ports
 }
 
+func (dcpp *dockerComposeProject) toNetworkMode(container v1.Container) string {
+	if dcpp.pod.Spec.HostNetwork {
+		return networkModeHost
+	}
+	//多容器Pod网络处理，都依赖于第一个容器的网络
+	if len(dcpp.pod.Spec.Containers) > 0 {
+		if dcpp.pod.Spec.Containers[0].Name != container.Name {
+			return networkModeServiceRely + makeContainerServiceName(dcpp.pod.Name, dcpp.pod.Spec.Containers[0].Name)
+		}
+	}
+	return ""
+}
+
 //pod里面的容器转换成docker-compose的service
 func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool) types.ServiceConfig {
 	svrconf := types.ServiceConfig{}
@@ -157,6 +176,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	}
 	netfield, _ := makeNetworkName(dcpp.config.Project)
 	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}
+	svrconf.NetworkMode = dcpp.toNetworkMode(container)
 	svrconf.Volumes = dcpp.toVolumes(container)
 	svrconf.Tty = true
 	return svrconf
@@ -179,15 +199,11 @@ func (dcpp *dockerComposeProject) services() types.Services {
 		services = append(services, svrconf)
 		initServiceNames[i] = svrconf.Name
 	}
-	for i, c := range dcpp.pod.Spec.Containers {
+	for _, c := range dcpp.pod.Spec.Containers {
 		svrconf := dcpp.toService(c, false)
 		svrconf.DependsOn = types.DependsOnConfig{}
 		for _, isn := range initServiceNames {
 			svrconf.DependsOn[isn] = serviceCompeleteDependency
-		}
-		//多容器Pod网络处理，都依赖于第一个容器的网络
-		if i > 0 {
-			svrconf.NetworkMode = "service:" + makeContainerServiceName(dcpp.pod.Name, dcpp.pod.Spec.Containers[0].Name)
 		}
 		services = append(services, svrconf)
 	}
