@@ -147,6 +147,11 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 			serviceName = dcpp.pod.Labels[appLabel]
 		}
 	}
+	if serviceName == "" {
+		if len(dcpp.pod.OwnerReferences) > 0 {
+			serviceName = dcpp.pod.OwnerReferences[0].Name
+		}
+	}
 	if serviceName != "" {
 		aliasNames = append(aliasNames, serviceName)
 	}
