@@ -112,7 +112,6 @@ func (dcpp *dockerComposeProject) toVolumes(container v1.Container) []types.Serv
 			Source: source,
 			Target: v.MountPath,
 			Bind: &types.ServiceVolumeBind{
-				Propagation:    types.PropagationRPrivate,
 				CreateHostPath: true,
 			},
 		}
