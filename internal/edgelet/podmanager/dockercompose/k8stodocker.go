@@ -170,6 +170,15 @@ func (dcpp *dockerComposeProject) toServiceNetworks(isInit bool) map[string]*typ
 	return nil
 }
 
+func (dcpp *dockerComposeProject) toPrivileged(container v1.Container) bool {
+	if container.SecurityContext != nil {
+		if container.SecurityContext.Privileged != nil {
+			return *container.SecurityContext.Privileged
+		}
+	}
+	return false
+}
+
 //pod里面的容器转换成docker-compose的service
 func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool) types.ServiceConfig {
 	svrconf := types.ServiceConfig{}
@@ -188,6 +197,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Networks = dcpp.toServiceNetworks(isInit)
 	svrconf.NetworkMode = dcpp.toNetworkMode(container)
 	svrconf.Volumes = dcpp.toVolumes(container)
+	svrconf.Privileged = dcpp.toPrivileged(container)
 	svrconf.Tty = true
 	return svrconf
 }
