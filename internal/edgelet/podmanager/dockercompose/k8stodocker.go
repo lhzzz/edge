@@ -214,7 +214,9 @@ func (dcpp *dockerComposeProject) Project() types.Project {
 	project := types.Project{Name: dcpp.config.Project}
 	project.Services = dcpp.services()
 	networkField, networkName := makeNetworkName(project.Name)
-	project.Networks = types.Networks{networkField: types.NetworkConfig{Name: networkName}}
+	if !dcpp.pod.Spec.HostNetwork {
+		project.Networks = types.Networks{networkField: types.NetworkConfig{Name: networkName}}
+	}
 	return project
 }
 
