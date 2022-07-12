@@ -143,21 +143,7 @@ func (dcpp *dockerComposeProject) toNetworkMode(container v1.Container) string {
 	return ""
 }
 
-//pod里面的容器转换成docker-compose的service
-func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool) types.ServiceConfig {
-	svrconf := types.ServiceConfig{}
-	podName := dcpp.pod.Name
-	svrconf.Name = makeContainerServiceName(podName, container.Name)
-	svrconf.Command = append(container.Command, container.Args...)
-	svrconf.Image = container.Image
-	svrconf.Labels = dcpp.newDockerComposeLabels(svrconf.Name, isInit)
-	svrconf.CustomLabels = types.Labels{}
-	svrconf.Environment = dcpp.toEnv(container)
-	svrconf.HealthCheck = dcpp.toHealthCheck(container)
-	svrconf.PullPolicy = types.PullPolicyIfNotPresent
-	svrconf.Restart = types.RestartPolicyAlways //types.RestartPolicyOnFailure+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
-	svrconf.Scale = 1
-	svrconf.Ports = dcpp.toPort(container)
+func (dcpp *dockerComposeProject) toServiceNetworks(isInit bool) map[string]*types.ServiceNetworkConfig {
 	aliasNames := make([]string, 0)
 	serviceName := ""
 	if !isInit {
@@ -175,7 +161,28 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 		aliasNames = append(aliasNames, serviceName)
 	}
 	netfield, _ := makeNetworkName(dcpp.config.Project)
-	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}
+	if !dcpp.pod.Spec.HostNetwork {
+		return map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}
+	}
+	return nil
+}
+
+//pod里面的容器转换成docker-compose的service
+func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool) types.ServiceConfig {
+	svrconf := types.ServiceConfig{}
+	podName := dcpp.pod.Name
+	svrconf.Name = makeContainerServiceName(podName, container.Name)
+	svrconf.Command = append(container.Command, container.Args...)
+	svrconf.Image = container.Image
+	svrconf.Labels = dcpp.newDockerComposeLabels(svrconf.Name, isInit)
+	svrconf.CustomLabels = types.Labels{}
+	svrconf.Environment = dcpp.toEnv(container)
+	svrconf.HealthCheck = dcpp.toHealthCheck(container)
+	svrconf.PullPolicy = types.PullPolicyIfNotPresent
+	svrconf.Restart = types.RestartPolicyAlways //types.RestartPolicyOnFailure+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
+	svrconf.Scale = 1
+	svrconf.Ports = dcpp.toPort(container)
+	svrconf.Networks = dcpp.toServiceNetworks(isInit)
 	svrconf.NetworkMode = dcpp.toNetworkMode(container)
 	svrconf.Volumes = dcpp.toVolumes(container)
 	svrconf.Tty = true
@@ -214,9 +221,7 @@ func (dcpp *dockerComposeProject) Project() types.Project {
 	project := types.Project{Name: dcpp.config.Project}
 	project.Services = dcpp.services()
 	networkField, networkName := makeNetworkName(project.Name)
-	if !dcpp.pod.Spec.HostNetwork {
-		project.Networks = types.Networks{networkField: types.NetworkConfig{Name: networkName}}
-	}
+	project.Networks = types.Networks{networkField: types.NetworkConfig{Name: networkName}}
 	return project
 }
 
