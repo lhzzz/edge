@@ -160,7 +160,6 @@ func (e *edgelet) GetContainerLogStream(req *pb.GetContainerLogsRequest, stream 
 			data := make([]byte, 1024)
 			n, er := ro.Read(data)
 			if n > 0 {
-				log.Info("send msg :", string(data[:n]))
 				ew := stream.SendMsg(&pb.GetContainerLogsResponse{Log: data[:n]})
 				if ew != nil {
 					isquit = true
