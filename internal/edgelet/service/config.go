@@ -4,9 +4,11 @@ import (
 	"edge/internal/constant"
 	"edge/pkg/util"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/viper"
 )
 
 type EdgeletConfig struct {
@@ -52,22 +54,21 @@ func initConfig() (*EdgeletConfig, error) {
 	if err := configReady(configfile); err != nil {
 		return nil, err
 	}
-
+	viper.SetConfigFile(configfile)
+	viper.SetConfigType("json")
+	err := viper.ReadInConfig()
+	if err != nil {
+		return nil, err
+	}
 	ec := &EdgeletConfig{}
-	f, err := os.OpenFile(configfile, os.O_RDONLY, 0755)
+	err = viper.Unmarshal(ec)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(data, ec)
-	if err != nil {
-		return nil, err
-	}
+	viper.WatchConfig()
+	viper.OnConfigChange(func(in fsnotify.Event) {
+		viper.Unmarshal(ec)
+	})
 	return ec, nil
 }
 
