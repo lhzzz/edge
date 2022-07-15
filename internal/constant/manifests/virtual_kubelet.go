@@ -33,8 +33,6 @@ spec:
         - --provider=zhst
         imagePullPolicy: Always
         env:
-        - name: JAEGER_AGENT_ENDPOINT
-          value: jaeger-agent:6831
         - name: CLUSTER_POD_IP
           valueFrom:
             fieldRef:
@@ -46,6 +44,10 @@ spec:
             readOnly: true
           - name: cci
             mountPath: /home/vk-config
+      dnsPolicy: None
+      dnsConfig:
+      nameservers:
+      - 10.96.0.12
       volumes:
       - name: kube-config
         hostPath:
