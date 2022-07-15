@@ -250,6 +250,10 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	for _, c := range containers {
 		serivceName := c.Labels[api.ServiceLabel]
 		podName, _ := parseContainerServiceName(serivceName)
+		//解析为空则说明不是k8s下发的
+		if podName == "" {
+			continue
+		}
 		inspect, err := d.dockerCli.Client().ContainerInspect(ctx, c.ID)
 		if err != nil {
 			return nil, err

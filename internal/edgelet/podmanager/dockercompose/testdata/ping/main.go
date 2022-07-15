@@ -3,6 +3,7 @@ package main
 import (
 	"edge/pkg/util"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,7 +16,7 @@ func main() {
 	r := gin.Default()
 	r.GET("/ping", healthCheck)
 
-	go r.Run(":8081")
+	go r.Run(os.Args[1])
 	go func() {
 		for {
 			logrus.Info("send msg at timestamp:", time.Now())

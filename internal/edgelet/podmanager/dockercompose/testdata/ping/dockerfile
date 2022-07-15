@@ -3,4 +3,4 @@ FROM ubuntu:18.04
 
 ADD server /usr/local/bin 
 
-ENTRYPOINT [ "/usr/local/bin/server" ]
+#ENTRYPOINT [ "/usr/local/bin/server" ]
