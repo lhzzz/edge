@@ -46,8 +46,8 @@ spec:
             mountPath: /home/vk-config
       dnsPolicy: None
       dnsConfig:
-      nameservers:
-      - 10.96.0.12
+        nameservers:
+        - 10.96.0.12
       volumes:
       - name: kube-config
         hostPath:

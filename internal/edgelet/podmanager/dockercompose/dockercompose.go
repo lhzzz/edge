@@ -372,8 +372,8 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Po
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
 			Inherit:              true,
-			Recreate:             api.RecreateDiverged,
-			RecreateDependencies: api.RecreateDiverged,
+			Recreate:             api.RecreateNever,
+			RecreateDependencies: api.RecreateNever,
 			IgnoreOrphans:        true,
 		},
 		Start: api.StartOptions{Project: &project},
