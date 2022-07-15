@@ -35,7 +35,8 @@ type edgelet struct {
 }
 
 const (
-	GiB                           = 1024 * 1024 * 1024
+	MiB                           = 1024 * 1024
+	GiB                           = MiB * 1024
 	memPressureThreshold  float64 = 90
 	diskPressureThreshold float64 = 80
 )
@@ -232,11 +233,11 @@ func (e *edgelet) configNode() *v1.Node {
 func (e *edgelet) capacity(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	var total uint64 = 100
 	if minfo != nil {
-		total = minfo.Total / GiB
+		total = minfo.Total / MiB
 	}
 	return v1.ResourceList{
 		"cpu":    resource.MustParse("100"),
-		"memory": resource.MustParse(fmt.Sprintf("%dGi", total)),
+		"memory": resource.MustParse(fmt.Sprintf("%dMi", total)),
 		"pods":   resource.MustParse("110"),
 	}
 }
@@ -244,12 +245,12 @@ func (e *edgelet) capacity(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	var usage uint64 = 0
 	if minfo != nil {
-		usage = minfo.Free / GiB
+		usage = minfo.Free / MiB
 	}
 	return v1.ResourceList{
 		"cpu":    resource.MustParse("100"),
-		"memory": resource.MustParse(fmt.Sprintf("%dGi", usage)),
-		"pods":   resource.MustParse("110"), //TODO:这里要动态修改
+		"memory": resource.MustParse(fmt.Sprintf("%dMi", usage)),
+		"pods":   resource.MustParse("110"),
 	}
 }
 

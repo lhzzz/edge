@@ -55,7 +55,7 @@ func (dcpp *dockerComposeProject) newDockerComposeLabels(service string, isInit 
 	return labels
 }
 
-//TODO:volumn 的sourcePath转换处理,configMap/secrets
+//volume 的sourcePath转换处理,configMap/secrets
 func (dcpp *dockerComposeProject) genSourcePath(mount v1.VolumeMount) string {
 	var index int = 0
 	for i, vo := range dcpp.pod.Spec.Volumes {
@@ -90,7 +90,7 @@ func (dcpp *dockerComposeProject) toHealthCheck(container v1.Container) *types.H
 	return nil
 }
 
-//status-host ip / podip 这些env的处理
+//env的处理
 func (dcpp *dockerComposeProject) toEnv(container v1.Container) types.MappingWithEquals {
 	envs := types.MappingWithEquals{}
 	for _, e := range container.Env {

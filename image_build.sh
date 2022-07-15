@@ -23,7 +23,8 @@ then
                 PLATFORM=$PLATFORM",linux/arm64"
                 cp ${BIN}/arm64/${d} ${DOCKERFILE}/${d}/mutiple/arm64
             fi
-            docker buildx build --platform ${PLATFORM} -t ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID} ${DOCKERFILE}/${d}/mutiple/ --push
+            LATEST=${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:latest
+            docker buildx build --platform ${PLATFORM} -t ${LATEST} -t ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID} ${DOCKERFILE}/${d}/mutiple/ --push
         fi
     }
     done
