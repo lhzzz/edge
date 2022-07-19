@@ -38,6 +38,7 @@ const (
 	k8sNamespaceLabel = "k8s-namespace"
 	k8sPodInfoLabel   = "k8s-podinfo"
 	k8sPodNameLabel   = "k8s-podname"
+	k8sFromLabel      = "k8s-from"
 	k8sInitContainer  = "k8s-initContainer"
 	always            = "always"
 
@@ -232,7 +233,7 @@ func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (
 		inspects[i] = inspect
 	}
 
-	return d.mobyContainersToK8sPod(inspects...), nil
+	return d.mobyContainersToK8sPod(inspects...)
 }
 
 func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
@@ -260,11 +261,14 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 		}
 		podContainers[podName] = append(podContainers[podName], inspect)
 	}
-	pods := make([]*v1.Pod, len(podContainers))
-	index := 0
+	pods := make([]*v1.Pod, 0)
 	for _, cs := range podContainers {
-		pods[index] = d.mobyContainersToK8sPod(cs...)
-		index++
+		pod, err := d.mobyContainersToK8sPod(cs...)
+		if err != nil {
+			logrus.Error("mobyContainersToK8sPod failed,err=", err)
+			continue
+		}
+		pods = append(pods, pod)
 	}
 	return pods, nil
 }
@@ -430,9 +434,13 @@ func podnameFilter(podname string) filters.KeyValuePair {
 	return filters.Arg("label", fmt.Sprintf("%s=%s", k8sPodNameLabel, podname))
 }
 
+func k8sFilter() filters.KeyValuePair {
+	return filters.Arg("label", fmt.Sprintf("%s=%s", k8sFromLabel, "true"))
+}
+
 //只支持查询一个service
 func getDefaultFilters(projectName string, selectedServices ...string) []filters.KeyValuePair {
-	f := []filters.KeyValuePair{projectFilter(projectName)}
+	f := []filters.KeyValuePair{projectFilter(projectName), k8sFilter()}
 	if len(selectedServices) == 1 {
 		f = append(f, serviceFilter(selectedServices[0]))
 	}
@@ -440,16 +448,26 @@ func getDefaultFilters(projectName string, selectedServices ...string) []filters
 }
 
 //重点
-func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
+func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON) (*v1.Pod, error) {
 	if len(containers) == 0 {
-		return nil
+		return nil, errdefs.NotFound("container is empty")
 	}
 	pod := v1.Pod{}
-	podinfo := containers[0].Config.Labels[k8sPodInfoLabel]
+	podinfo := ""
+	for _, c := range containers {
+		info := c.Config.Labels[k8sPodInfoLabel]
+		if len(info) > 0 {
+			podinfo = info
+			break
+		}
+	}
+	if len(podinfo) == 0 {
+		return nil, errdefs.InvalidInput("not k8s container")
+	}
 	err := json.Unmarshal([]byte(podinfo), &pod)
 	if err != nil {
 		logrus.Error("json unmarshal container pod label failed,err=", err)
-		return nil
+		return nil, errdefs.InvalidInput("k8s container label invalid")
 	}
 	pod.Status.Phase = v1.PodRunning
 	pod.Status.Reason = ""
@@ -509,7 +527,7 @@ func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON)
 		}
 	}
 	pod.Status.ContainerStatuses = statuses
-	return &pod
+	return &pod, nil
 }
 
 func mobyContainerToK8sContainerState(podContainerName string, container moby.ContainerJSON, isInit bool) v1.ContainerStatus {

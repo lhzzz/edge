@@ -48,10 +48,13 @@ func (dcpp *dockerComposeProject) newDockerComposeLabels(service string, isInit 
 	labels.Add(k8sNamespaceLabel, dcpp.pod.ObjectMeta.Namespace)
 	labels.Add(k8sPodNameLabel, dcpp.pod.ObjectMeta.Name)
 	jbyte, _ := json.Marshal(dcpp.pod)
-	labels.Add(k8sPodInfoLabel, string(jbyte))
+	if len(jbyte) > 0 {
+		labels.Add(k8sPodInfoLabel, string(jbyte))
+	}
 	if isInit {
 		labels.Add(k8sInitContainer, "true")
 	}
+	labels.Add(k8sFromLabel, "true")
 	return labels
 }
 
