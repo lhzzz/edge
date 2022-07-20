@@ -182,6 +182,16 @@ func (dcpp *dockerComposeProject) toPrivileged(container v1.Container) bool {
 	return false
 }
 
+func (dcpp *dockerComposeProject) toExtreHosts() types.HostsList {
+	hosts := types.HostsList{}
+	for _, ha := range dcpp.pod.Spec.HostAliases {
+		for _, hostname := range ha.Hostnames {
+			hosts[hostname] = ha.IP
+		}
+	}
+	return hosts
+}
+
 //pod里面的容器转换成docker-compose的service
 func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool) types.ServiceConfig {
 	svrconf := types.ServiceConfig{}
@@ -202,6 +212,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Volumes = dcpp.toVolumes(container)
 	svrconf.Privileged = dcpp.toPrivileged(container)
 	svrconf.Tty = true
+	svrconf.ExtraHosts = dcpp.toExtreHosts()
 	return svrconf
 }
 
