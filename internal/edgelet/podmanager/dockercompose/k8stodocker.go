@@ -182,7 +182,7 @@ func (dcpp *dockerComposeProject) toPrivileged(container v1.Container) bool {
 	return false
 }
 
-func (dcpp *dockerComposeProject) toExtreHosts() types.HostsList {
+func (dcpp *dockerComposeProject) toExtraHosts() types.HostsList {
 	hosts := types.HostsList{}
 	for _, ha := range dcpp.pod.Spec.HostAliases {
 		for _, hostname := range ha.Hostnames {
@@ -212,7 +212,9 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Volumes = dcpp.toVolumes(container)
 	svrconf.Privileged = dcpp.toPrivileged(container)
 	svrconf.Tty = true
-	svrconf.ExtraHosts = dcpp.toExtreHosts()
+	if !strings.HasPrefix(svrconf.NetworkMode, networkModeServiceRely) {
+		svrconf.ExtraHosts = dcpp.toExtraHosts() //这个会跟network_mode冲突
+	}
 	return svrconf
 }
 
