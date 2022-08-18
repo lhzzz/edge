@@ -170,7 +170,7 @@ type ServiceNetworkConfig struct {
 {
   "registryAddress":"10.0.0.122:31173", //注册到云端的服务地址，即edge-registry的地址
   "diskPath":"/",	//磁盘监测的目录
-  "nodeName":"mw-123123124" //join后会将node-Name存储起来，后续reset会自动使用该nodeName
+  "nodeName":"edge-worker-1" //join后会将node-Name存储起来，后续reset会自动使用该nodeName
 }
 ```
 
