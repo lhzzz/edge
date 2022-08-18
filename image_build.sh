@@ -4,7 +4,7 @@ set -e
 CMD=cmd/
 BIN=bin
 DOCKERFILE=build/docker
-REGISTRY=registry.zhst.com
+REGISTRY=registry.edge.com
 VERSION=v
 
 if [[ $1 == "cicd" ]]

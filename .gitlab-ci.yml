@@ -6,7 +6,7 @@ stages:
   - package
 
 amd64_build:
-  image: registry.zhst.com/dev/golang-version-1.17.6:latest
+  image: registry.edge.com/dev/go-1.17.6:latest
   tags:
     - linux 
   stage: build
@@ -20,7 +20,7 @@ amd64_build:
       - ./bin/amd64/*
 
 arm64_build:
-  image: registry.zhst.com/video-analysis/go-cuda10.2-v2:aarch64
+  image: registry.edge.com/dev/go-1.17.6:latest
   tags:
     - linux 
   stage: build
@@ -35,7 +35,7 @@ arm64_build:
 
 
 linux_image:
-  image: registry.zhst.com/dev/golang:latest
+  image: registry.edge.com/dev/golang:latest
   tags:
     - linux_shell
   stage: package 

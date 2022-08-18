@@ -1,0 +1,66 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+#   lint:
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Checkout Code
+#       uses: actions/checkout@master
+
+#     - name: Set up Go
+#       uses: actions/setup-go@v3
+#       with:
+#         go-version: 1.16
+
+#     - name: Lint Go Code
+#       run: | 
+#         export PATH=$PATH:$(go env GOPATH)/bin # temporary fix. See https://github.com/actions/setup-go/issues/14
+#         go get -u golang.org/x/lint/golint 
+#         make lint
+
+  # gen: 
+  #   name: Gen Protobuf
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - name: Checkout Code
+  #     uses: actions/checkout@master
+
+  #   - name: Set up Go
+  #     uses: actions/setup-go@v3
+  #     with:
+  #       go-version: 1.16
+
+  #   - name: Gen 
+  #     run: |
+  #       cp api/bin/* /usr/local/bin/*
+  #       make gen
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@master
+
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.16
+
+    - name: Build
+      run: |
+        export PATH=$PATH:$(go env GOPATH)/bin
+        chmod +x api/edge-proto/*
+        cp api/edge-proto/bin/* $(go env GOPATH)/bin
+        chmod +x $(go env GOPATH)/bin/*
+        make

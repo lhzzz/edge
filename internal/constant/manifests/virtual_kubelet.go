@@ -24,13 +24,13 @@ spec:
     spec:
       containers:
       - name: virtual-kubelet
-        image: registry.zhst.com/cloud-native/virtual-kubelet:latest
+        image: registry.edge.com/cloud-native/virtual-kubelet:latest
         command:
         - /home/virtual-kubelet
         args:
         - --nodename={{.NodeName}}
         - --provider-config=/home/vk-config/cci.toml
-        - --provider=zhst
+        - --provider=edge
         imagePullPolicy: Always
         env:
         - name: CLUSTER_POD_IP

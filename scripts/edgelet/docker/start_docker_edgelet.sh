@@ -2,7 +2,7 @@
 
 USER=$(whoami)
 DOCKER_CONFIG="/home/"$USER"/.docker"
-EDGELET_IMAGE=registry.zhst.com/cloud-native/edgelet:local
+EDGELET_IMAGE=registry.edge.com/cloud-native/edgelet:local
 SUDO="sudo"
 if [[ $USER == "root" ]]; then 
     SUDO=""

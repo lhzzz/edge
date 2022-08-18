@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: edge-registry
-        image: registry.zhst.com/cloud-native/edge-registry:latest
+        image: registry.edge.com/cloud-native/edge-registry:latest
         command:
           - /usr/local/bin/edge-registry
         imagePullPolicy: IfNotPresent

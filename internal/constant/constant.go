@@ -2,7 +2,7 @@ package constant
 
 const (
 	EdgeNameSpace = "edge-cluster"
-	CenterDomain  = "center.zhst.com"
+	CenterDomain  = "center.edge.com"
 )
 
 const (
