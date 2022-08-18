@@ -64,3 +64,16 @@ func (e *EdgeRegistryServer) DeleteNode(ctx context.Context, req *pb.DeleteNodeR
 	}
 	return resp, nil
 }
+
+func (e *EdgeRegistryServer) GetNode(ctx context.Context, req *pb.GetNodeRequest) (*pb.GetNodeResponse, error) {
+	resp := &pb.GetNodeResponse{}
+	if req.NodeName == "" {
+		resp.Error = protoerr.ParamErr("NodeName is empty")
+		return resp, nil
+	}
+	exist := existEdgeNode(ctx, req.NodeName)
+	if !exist {
+		resp.Error = protoerr.NotFoundErr("node not exist")
+	}
+	return resp, nil
+}

@@ -6,5 +6,5 @@ metadata:
 data:
   cci.toml: |
     {
-        "edgeaddress":""
+        "edgeport":9001
     }

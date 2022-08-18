@@ -15,12 +15,12 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-func Run(runAddress string) {
-
+func Run(runAddress, version string) {
 	common.InitLogger()
+	logrus.Info("edgelet version:", version)
 
 	grpcServer := grpc.NewServer()
-	edgelet := service.NewEdgelet()
+	edgelet := service.NewEdgelet(version)
 	//健康检测
 	health := health.NewServer()
 	health.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
@@ -28,7 +28,7 @@ func Run(runAddress string) {
 	pb.RegisterEdgeletServer(grpcServer, edgelet)
 	pb.RegisterEdgeadmServer(grpcServer, edgelet)
 
-	listen, err := net.Listen("tcp", runAddress)
+	listen, err := net.Listen("tcp4", runAddress)
 	if err != nil {
 		logrus.Fatal("failed to listen: ", err)
 	}
@@ -44,6 +44,7 @@ func Run(runAddress string) {
 	<-quit
 
 	logrus.Info("Shutting down server...")
+	edgelet.Stop()
 	grpcServer.Stop()
 	logrus.Info("Server exiting")
 }

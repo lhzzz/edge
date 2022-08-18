@@ -3,6 +3,7 @@ package dockercompose
 import (
 	"context"
 	"edge/internal/edgelet/podmanager/config"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -16,8 +17,8 @@ import (
 	"github.com/docker/compose/v2/pkg/api"
 	moby "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/sanathkr/go-yaml"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -390,8 +391,9 @@ func Test_log(t *testing.T) {
 }
 
 func Test_load(t *testing.T) {
-	path := "/mnt/c/Users/LinHao/go/test/hummingbird/"
-	opts, err := cli.NewProjectOptions([]string{path + "docker-compose.yaml"}, cli.WithName("hummingbird"))
+	//path := "/mnt/c/Users/LinHao/go/test/hummingbird/docker-compose.yaml"
+	path2 := "./testdata/compose.yml"
+	opts, err := cli.NewProjectOptions([]string{path2}, cli.WithName("hummingbird"))
 	if err != nil {
 		t.Error(err)
 		return
@@ -402,12 +404,15 @@ func Test_load(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	t.Log(project)
+	data, _ := json.MarshalIndent(project, "", "\t")
+	t.Log(string(data))
 
-	for _, s := range project.Services {
-		if s.Name == "vearch-master" {
-			t.Log(s)
-		}
-	}
+	// for _, s := range project.Services {
+	// 	if s.Name == "vearch-master" {
+	// 		t.Log(s)
+	// 	}
+	// }
 
 	// data, _ := json.MarshalIndent(project, "", "\t")
 	// t.Log(string(data))

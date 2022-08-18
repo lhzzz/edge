@@ -6,69 +6,81 @@ import (
 	"edge/internal/edgelet/podmanager"
 	"edge/internal/edgelet/podmanager/config"
 	"edge/pkg/errdefs"
+	"edge/pkg/protoerr"
+	"edge/pkg/util"
 	"fmt"
-	"io/ioutil"
-	"net"
+	"io"
 	"runtime"
-	"strings"
 	"sync"
 
+	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/host"
 	"github.com/shirou/gopsutil/mem"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type edgelet struct {
-	cloudAddress       string
-	addressMutex       sync.Mutex
+	config             *EdgeletConfig
+	configMutex        sync.Mutex
 	pm                 podmanager.PodManager
 	lastHeartbeatTime  metav1.Time
 	lastTransitionTime metav1.Time
 	localIPAddress     string
 	kernalVersion      string
 	OSIImage           string
+	buildVersion       string
 }
 
 const (
-	GiB = 1024 * 1024 * 1024
+	MiB                           = 1024 * 1024
+	GiB                           = MiB * 1024
+	memPressureThreshold  float64 = 90
+	diskPressureThreshold float64 = 80
 )
 
-var (
-	pberrEOF = &pb.Error{Code: pb.ErrorCode_SERVICE_STREAM_CALL_FINISH}
-)
-
-func NewEdgelet() *edgelet {
-	localaddress, _ := getOutBoundIP()
+func NewEdgelet(version string) *edgelet {
+	localaddress, _ := util.GetOutBoundIP()
 	kernalversion, _ := host.KernelVersion()
 	platform, _, _, _ := host.PlatformInformation()
+	conf, err := initConfig()
+	if err != nil {
+		log.Panicf("init config %s, err=%v", configPath, err)
+	}
+	log.Info("config load success:", conf)
 	return &edgelet{
 		kernalVersion:  kernalversion,
 		OSIImage:       platform,
 		localIPAddress: localaddress,
 		pm:             podmanager.New(config.WithIPAddress(localaddress)),
+		config:         conf,
+		buildVersion:   version,
 	}
 }
 
+func (e *edgelet) Stop() {
+	e.config.Save()
+}
+
 func (e *edgelet) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
-	logrus.Info("CreateVolume")
+	log.Info("CreateVolume")
 	resp := &pb.CreateVolumeResponse{}
 	err := e.pm.CreateVolume(ctx, req)
 	if err != nil {
-		logrus.Error("CreateVolume failed, err=", err)
+		log.Error("CreateVolume failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
 	return resp, nil
 }
 
 func (e *edgelet) CreatePod(ctx context.Context, req *pb.CreatePodRequest) (*pb.CreatePodResponse, error) {
-	log := logrus.WithField("pod", req.Pod.Name)
+	log := log.WithField("pod", req.Pod.Name)
 	resp := &pb.CreatePodResponse{}
 	pod, err := e.pm.CreatePod(ctx, req.Pod)
 	if err != nil {
-		logrus.Error("CreatePod failed, err=", err)
+		log.Error("CreatePod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
 	resp.Pod = pod
@@ -77,11 +89,11 @@ func (e *edgelet) CreatePod(ctx context.Context, req *pb.CreatePodRequest) (*pb.
 }
 
 func (e *edgelet) UpdatePod(ctx context.Context, req *pb.UpdatePodRequest) (*pb.UpdatePodResponse, error) {
-	log := logrus.WithField("pod", req.Pod.Name)
+	log := log.WithField("pod", req.Pod.Name)
 	resp := &pb.UpdatePodResponse{}
 	pod, err := e.pm.UpdatePod(ctx, req.Pod)
 	if err != nil {
-		logrus.Error("UpdatePod failed, err=", err)
+		log.Error("UpdatePod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
 	resp.Pod = pod
@@ -90,11 +102,11 @@ func (e *edgelet) UpdatePod(ctx context.Context, req *pb.UpdatePodRequest) (*pb.
 }
 
 func (e *edgelet) DeletePod(ctx context.Context, req *pb.DeletePodRequest) (*pb.DeletePodResponse, error) {
-	logrus.Info("DeletePod podName:", req.Pod.ObjectMeta.Name)
+	log.Info("DeletePod podName:", req.Pod.ObjectMeta.Name)
 	resp := &pb.DeletePodResponse{}
 	err := e.pm.DeletePod(ctx, req.Pod)
 	if err != nil {
-		logrus.Error("DeletePod failed, err=", err)
+		log.Error("DeletePod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 	}
 	return resp, nil
@@ -102,10 +114,10 @@ func (e *edgelet) DeletePod(ctx context.Context, req *pb.DeletePodRequest) (*pb.
 
 func (e *edgelet) GetPod(ctx context.Context, req *pb.GetPodRequest) (*pb.GetPodResponse, error) {
 	resp := &pb.GetPodResponse{}
-	logrus.Info("GetPod ", req)
+	log.Info("GetPod ", req)
 	pod, err := e.pm.GetPod(ctx, req.Namespace, req.Name)
 	if err != nil {
-		logrus.Error("GetPod failed, err=", err)
+		log.Error("GetPod failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 		if errdefs.IsNotFound(err) {
 			resp.Error.Code = pb.ErrorCode_NO_RESULT
@@ -118,10 +130,10 @@ func (e *edgelet) GetPod(ctx context.Context, req *pb.GetPodRequest) (*pb.GetPod
 
 func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetPodsResponse, error) {
 	resp := &pb.GetPodsResponse{}
-	logrus.Info("GetPods :", req)
+	log.Info("GetPods :", req)
 	pods, err := e.pm.GetPods(ctx)
 	if err != nil {
-		logrus.Error("GetPods failed, err=", err)
+		log.Error("GetPods failed, err=", err)
 		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
 		return resp, nil
 	}
@@ -129,67 +141,48 @@ func (e *edgelet) GetPods(ctx context.Context, req *pb.GetPodsRequest) (*pb.GetP
 	return resp, nil
 }
 
-// func (e *edgelet) GetContainerLogs(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogsServer) error {
-// 	logrus.Info("GetContainerLogs :", req)
+func (e *edgelet) GetContainerLogStream(req *pb.GetContainerLogsRequest, stream pb.Edgelet_GetContainerLogStreamServer) error {
+	log.Info("GetContainerLogStream :", req)
 
-// 	ctx := stream.Context()
-// 	ro, err := e.pm.GetContainerLogs(ctx, req.Namespace, req.Name, req.ContainerName, req.Opts)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer ro.Close()
-
-// 	isquit := false
-// 	for !isquit {
-// 		select {
-// 		case <-ctx.Done():
-// 			isquit = true
-// 			logrus.Info("GetContainerLogs ctx is done:", ctx.Err())
-// 		default:
-// 			data := make([]byte, 1024)
-// 			n, er := ro.Read(data)
-// 			if n > 0 {
-// 				logrus.Info("send msg :", string(data[:n]))
-// 				ew := stream.SendMsg(&pb.GetContainerLogsResponse{Log: data[:n]})
-// 				if ew != nil {
-// 					isquit = true
-// 					logrus.Info("GetContainerLogs Exit for ew=", ew)
-// 					break
-// 				}
-// 			}
-// 			if er != nil {
-// 				if er == io.EOF {
-// 					err = stream.SendMsg(&pb.GetContainerLogsResponse{Error: pberrEOF})
-// 					if err != nil {
-// 						logrus.Warn("GetContainerLogs send EOF failed err=", err)
-// 					}
-// 				}
-// 				isquit = true
-// 				logrus.Info("GetContainerLogs Exit for er=", er)
-// 				break
-// 			}
-// 		}
-// 	}
-// 	logrus.Info("GetContainerLogs is exit")
-// 	return nil
-// }
-
-func (e *edgelet) GetContainerLogs(ctx context.Context, req *pb.GetContainerLogsRequest) (*pb.GetContainerLogsResponse, error) {
-	logrus.Info("GetContainerLogs :", req)
-	resp := &pb.GetContainerLogsResponse{}
-
+	ctx := stream.Context()
 	ro, err := e.pm.GetContainerLogs(ctx, req.Namespace, req.Name, req.ContainerName, req.Opts)
 	if err != nil {
-		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
-		return resp, err
+		return err
 	}
-	data, err := ioutil.ReadAll(ro)
-	if err != nil {
-		resp.Error = &pb.Error{Code: pb.ErrorCode_INTERNAL_ERROR, Msg: err.Error()}
-		return resp, err
+	defer ro.Close()
+
+	isquit := false
+	for !isquit {
+		select {
+		case <-ctx.Done():
+			isquit = true
+			log.Info("GetContainerLogStream ctx is done:", ctx.Err())
+		default:
+			data := make([]byte, 1024)
+			n, er := ro.Read(data)
+			if n > 0 {
+				ew := stream.SendMsg(&pb.GetContainerLogsResponse{Log: data[:n]})
+				if ew != nil {
+					isquit = true
+					log.Info("GetContainerLogStream Exit for ew=", ew)
+					break
+				}
+			}
+			if er != nil {
+				if er == io.EOF {
+					err = stream.SendMsg(&pb.GetContainerLogsResponse{Error: protoerr.StreamFinishErr("EOF")})
+					if err != nil {
+						log.Warn("GetContainerLogStream send EOF failed err=", err)
+					}
+				}
+				isquit = true
+				log.Info("GetContainerLogStream Exit for er=", er)
+				break
+			}
+		}
 	}
-	resp.Log = data
-	return resp, nil
+	log.Info("GetContainerLogStream is exit")
+	return nil
 }
 
 func (e *edgelet) RunInContainer(ctx context.Context, req *pb.RunInContainerRequest) (*pb.RunInContainerResponse, error) {
@@ -201,7 +194,7 @@ func (e *edgelet) GetStatsSummary(ctx context.Context, req *pb.GetStatsSummaryRe
 }
 
 func (e *edgelet) DescribeNodeStatus(ctx context.Context, req *pb.DescribeNodeStatusRequest) (*pb.DescribeNodeStatusResponse, error) {
-	logrus.Info("DescribeNodeStatus")
+	log.Info("DescribeNodeStatus")
 	resp := &pb.DescribeNodeStatusResponse{}
 	changePods, err := e.pm.DescribePodsStatus(ctx)
 	if err != nil {
@@ -229,7 +222,7 @@ func (e *edgelet) configNode() *v1.Node {
 				Architecture:            e.architecture(),
 				KernelVersion:           e.kernalVersion,
 				OSImage:                 e.OSIImage,
-				ContainerRuntimeVersion: "",
+				ContainerRuntimeVersion: e.pm.ContainerRuntimeVersion(context.Background()),
 			},
 		},
 	}
@@ -240,11 +233,11 @@ func (e *edgelet) configNode() *v1.Node {
 func (e *edgelet) capacity(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	var total uint64 = 100
 	if minfo != nil {
-		total = minfo.Total / GiB
+		total = minfo.Total / MiB
 	}
 	return v1.ResourceList{
 		"cpu":    resource.MustParse("100"),
-		"memory": resource.MustParse(fmt.Sprintf("%dGi", total)),
+		"memory": resource.MustParse(fmt.Sprintf("%dMi", total)),
 		"pods":   resource.MustParse("110"),
 	}
 }
@@ -252,12 +245,12 @@ func (e *edgelet) capacity(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 	var usage uint64 = 0
 	if minfo != nil {
-		usage = minfo.Free / GiB
+		usage = minfo.Free / MiB
 	}
 	return v1.ResourceList{
 		"cpu":    resource.MustParse("100"),
-		"memory": resource.MustParse(fmt.Sprintf("%dGi", usage)),
-		"pods":   resource.MustParse("110"), //TODO:这里要动态修改
+		"memory": resource.MustParse(fmt.Sprintf("%dMi", usage)),
+		"pods":   resource.MustParse("110"),
 	}
 }
 
@@ -266,7 +259,6 @@ func (e *edgelet) allocatable(minfo *mem.VirtualMemoryStat) v1.ResourceList {
 func (e *edgelet) nodeConditions() []v1.NodeCondition {
 	nodeConditions := []v1.NodeCondition{}
 	//ready
-
 	nodeConditions = append(nodeConditions, v1.NodeCondition{
 		Type:               "Ready",
 		Status:             v1.ConditionTrue,
@@ -276,45 +268,45 @@ func (e *edgelet) nodeConditions() []v1.NodeCondition {
 		Message:            "Edgelet is ready.",
 	})
 
-	//disk
-	//memory
-	//network
+	ms, err := mem.VirtualMemory()
+	if err != nil {
+		log.Error("fetch mermory failed,err=", err)
+	} else {
+		memCondition := v1.NodeCondition{
+			Type:               v1.NodeMemoryPressure,
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletHasSufficientMemory",
+			Message:            "kubelet has sufficient memory available",
+		}
+		if ms.UsedPercent > memPressureThreshold {
+			memCondition.Status = v1.ConditionTrue
+			memCondition.Reason = "KubeletHasInsufficientMemory"
+			memCondition.Message = "kubelet has insufficient memory available"
+		}
+		nodeConditions = append(nodeConditions, memCondition)
+	}
 
-	// conds := []v1.NodeCondition{
-	// 	{
-	// 		Type:               "OutOfDisk",
-	// 		Status:             v1.ConditionTrue,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "KubeletHasSufficientDisk",
-	// 		Message:            "kubelet has sufficient disk space available",
-	// 	},
-	// 	{
-	// 		Type:               "MemoryPressure",
-	// 		Status:             v1.ConditionFalse,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "KubeletHasSufficientMemory",
-	// 		Message:            "kubelet has sufficient memory available",
-	// 	},
-	// 	{
-	// 		Type:               "DiskPressure",
-	// 		Status:             v1.ConditionFalse,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "KubeletHasNoDiskPressure",
-	// 		Message:            "kubelet has no disk pressure",
-	// 	},
-	// 	{
-	// 		Type:               "NetworkUnavailable",
-	// 		Status:             v1.ConditionFalse,
-	// 		LastHeartbeatTime:  e.lastHeartbeatTime,
-	// 		LastTransitionTime: e.lastTransitionTime,
-	// 		Reason:             "RouteCreated",
-	// 		Message:            "RouteController created a route",
-	// 	},
-	// }
-	// nodeConditions = append(nodeConditions, conds...)
+	dsk, err := disk.Usage(e.config.DiskPath)
+	if err != nil {
+		log.Error("fetch dsk failed ,err=", err)
+	} else {
+		diskCondition := v1.NodeCondition{
+			Type:               v1.NodeDiskPressure,
+			Status:             v1.ConditionFalse,
+			LastHeartbeatTime:  e.lastHeartbeatTime,
+			LastTransitionTime: e.lastTransitionTime,
+			Reason:             "KubeletHasNoDiskPressure",
+			Message:            "kubelet has no disk pressure",
+		}
+		if dsk.UsedPercent > diskPressureThreshold {
+			diskCondition.Status = v1.ConditionTrue
+			diskCondition.Reason = "KubeletHasDiskPressure"
+			diskCondition.Message = "kubelet has disk pressure"
+		}
+		nodeConditions = append(nodeConditions, diskCondition)
+	}
 	return nodeConditions
 }
 
@@ -335,15 +327,4 @@ func (e *edgelet) operatingSystem() string {
 
 func (e *edgelet) architecture() string {
 	return runtime.GOARCH
-}
-
-func getOutBoundIP() (ip string, err error) {
-	conn, err := net.Dial("udp", "8.8.8.8:53")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	ip = strings.Split(localAddr.String(), ":")[0]
-	return
 }

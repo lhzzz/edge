@@ -9,6 +9,7 @@ import (
 	"edge/api/edge-proto/pb"
 	pmconf "edge/internal/edgelet/podmanager/config"
 	"edge/pkg/errdefs"
+	"edge/pkg/util"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,7 @@ const (
 	k8sNamespaceLabel = "k8s-namespace"
 	k8sPodInfoLabel   = "k8s-podinfo"
 	k8sPodNameLabel   = "k8s-podname"
+	k8sFromLabel      = "k8s-from"
 	k8sInitContainer  = "k8s-initContainer"
 	always            = "always"
 
@@ -63,24 +65,16 @@ var (
 
 	//init-container dependency
 	serviceCompeleteDependency = types.ServiceDependency{Condition: types.ServiceConditionCompletedSuccessfully}
-
-	//Pending Container
-	pendingContainerState = v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: string(pendingReason)}}
-
-	//default fields entry
-	k8sManagerFieldsEntry = []metav1.ManagedFieldsEntry{
-		{Manager: "kube-controller-manager", Operation: metav1.ManagedFieldsOperationUpdate, APIVersion: "v1"},
-		{Manager: "virtual-kubelet", Operation: metav1.ManagedFieldsOperationUpdate, APIVersion: "v1"},
-	}
 )
 
 type dcpPodManager struct {
 	pmconf.Config
-	composeApi api.Service
-	dockerCli  command.Cli
-	podEvents  map[string]struct{}
-	eventMutex sync.RWMutex
-	podMutex   sync.Mutex
+	composeApi     api.Service
+	dockerCli      command.Cli
+	podEvents      map[string]struct{}
+	eventMutex     sync.RWMutex
+	podMutex       sync.Mutex
+	runtimeVersion string
 }
 
 //Docker Compose版本必须要在V2.0 以上
@@ -118,10 +112,11 @@ func NewPodManager(opts ...pmconf.Option) *dcpPodManager {
 
 func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) error {
 	for _, v := range req.Vols {
+		logrus.Info("CreateVolume ", v.Name)
 		switch vol := v.Volumn.(type) {
 		case *pb.EdgeVolume_EmptyDir:
 			path := filepath.Join(d.EmptyDirRoot(), v.Name)
-			if pathExists(path) {
+			if util.IsFileExist(path) {
 				continue
 			}
 			err := os.MkdirAll(path, 0755)
@@ -130,11 +125,12 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 			}
 		case *pb.EdgeVolume_HostPath:
 			path := vol.HostPath.Path
-			if pathExists(path) {
+			if util.IsFileExist(path) {
+				logrus.Info("path is exist:", path)
 				continue
 			}
 			hostType := v1.HostPathType(vol.HostPath.HostType)
-			if hostType == v1.HostPathDirectory || hostType == v1.HostPathDirectoryOrCreate {
+			if hostType == v1.HostPathDirectory || hostType == v1.HostPathDirectoryOrCreate || hostType == v1.HostPathUnset {
 				err := os.MkdirAll(path, 0755)
 				if err != nil {
 					return fmt.Errorf("mkdir hostPath failed,err=%v", err)
@@ -153,7 +149,7 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 			}
 			for name, data := range vol.ConfigMap.Items {
 				path := filepath.Join(dirpath, name)
-				if pathExists(path) {
+				if util.IsFileExist(path) {
 					continue
 				}
 				f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
@@ -173,7 +169,7 @@ func (d *dcpPodManager) CreateVolume(ctx context.Context, req *pb.CreateVolumeRe
 			}
 			for name, data := range vol.Secret.Items {
 				path := filepath.Join(dirpath, name)
-				if pathExists(path) {
+				if util.IsFileExist(path) {
 					continue
 				}
 				f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0755)
@@ -237,7 +233,7 @@ func (d *dcpPodManager) GetPod(ctx context.Context, namespace, podName string) (
 		inspects[i] = inspect
 	}
 
-	return d.mobyContainersToK8sPod(inspects...), nil
+	return d.mobyContainersToK8sPod(inspects...)
 }
 
 func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
@@ -255,19 +251,26 @@ func (d *dcpPodManager) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	for _, c := range containers {
 		serivceName := c.Labels[api.ServiceLabel]
 		podName, _ := parseContainerServiceName(serivceName)
+		//解析为空则说明不是k8s下发的
+		if podName == "" {
+			continue
+		}
 		inspect, err := d.dockerCli.Client().ContainerInspect(ctx, c.ID)
 		if err != nil {
 			return nil, err
 		}
 		podContainers[podName] = append(podContainers[podName], inspect)
 	}
-	ret := make([]*v1.Pod, len(podContainers))
-	index := 0
+	pods := make([]*v1.Pod, 0)
 	for _, cs := range podContainers {
-		ret[index] = d.mobyContainersToK8sPod(cs...)
-		index++
+		pod, err := d.mobyContainersToK8sPod(cs...)
+		if err != nil {
+			logrus.Error("mobyContainersToK8sPod failed,err=", err)
+			continue
+		}
+		pods = append(pods, pod)
 	}
-	return ret, nil
+	return pods, nil
 }
 
 func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname, containerName string, opts *pb.ContainerLogOptions) (io.ReadCloser, error) {
@@ -290,6 +293,7 @@ func (d *dcpPodManager) GetContainerLogs(ctx context.Context, namespace, podname
 		Since:      opts.SinceTime,
 		Timestamps: opts.Timestamps,
 		Details:    true,
+		Follow:     opts.Follow,
 	}
 	if opts.Tail > 0 {
 		mopts.Tail = fmt.Sprint(opts.Tail)
@@ -315,6 +319,19 @@ func (d *dcpPodManager) DescribePodsStatus(ctx context.Context) ([]*v1.Pod, erro
 		pods = append(pods, pod)
 	}
 	return pods, nil
+}
+
+func (d *dcpPodManager) ContainerRuntimeVersion(ctx context.Context) string {
+	if d.runtimeVersion != "" {
+		return d.runtimeVersion
+	}
+	ver, err := d.dockerCli.Client().ServerVersion(ctx)
+	if err != nil {
+		logrus.Warn("get container runtime version failed,err=", err)
+		return ""
+	}
+	d.runtimeVersion = "docker://" + ver.Version
+	return d.runtimeVersion
 }
 
 func (d *dcpPodManager) handleEvent(consumer func(event api.Event) error) {
@@ -363,8 +380,8 @@ func (d *dcpPodManager) createOrUpdate(ctx context.Context, pod *v1.Pod) (*v1.Po
 	err := d.composeApi.Up(ctx, &project, api.UpOptions{
 		Create: api.CreateOptions{
 			Inherit:              true,
-			Recreate:             api.RecreateDiverged,
-			RecreateDependencies: api.RecreateDiverged,
+			Recreate:             api.RecreateNever,
+			RecreateDependencies: api.RecreateNever,
 			IgnoreOrphans:        true,
 		},
 		Start: api.StartOptions{Project: &project},
@@ -417,8 +434,13 @@ func podnameFilter(podname string) filters.KeyValuePair {
 	return filters.Arg("label", fmt.Sprintf("%s=%s", k8sPodNameLabel, podname))
 }
 
+func k8sFilter() filters.KeyValuePair {
+	return filters.Arg("label", fmt.Sprintf("%s=%s", k8sFromLabel, "true"))
+}
+
+//只支持查询一个service
 func getDefaultFilters(projectName string, selectedServices ...string) []filters.KeyValuePair {
-	f := []filters.KeyValuePair{projectFilter(projectName)}
+	f := []filters.KeyValuePair{projectFilter(projectName), k8sFilter()}
 	if len(selectedServices) == 1 {
 		f = append(f, serviceFilter(selectedServices[0]))
 	}
@@ -426,16 +448,26 @@ func getDefaultFilters(projectName string, selectedServices ...string) []filters
 }
 
 //重点
-func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON) *v1.Pod {
+func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON) (*v1.Pod, error) {
 	if len(containers) == 0 {
-		return nil
+		return nil, errdefs.NotFound("container is empty")
 	}
 	pod := v1.Pod{}
-	podinfo := containers[0].Config.Labels[k8sPodInfoLabel]
+	podinfo := ""
+	for _, c := range containers {
+		info := c.Config.Labels[k8sPodInfoLabel]
+		if len(info) > 0 {
+			podinfo = info
+			break
+		}
+	}
+	if len(podinfo) == 0 {
+		return nil, errdefs.InvalidInput("not k8s container")
+	}
 	err := json.Unmarshal([]byte(podinfo), &pod)
 	if err != nil {
 		logrus.Error("json unmarshal container pod label failed,err=", err)
-		return nil
+		return nil, errdefs.InvalidInput("k8s container label invalid")
 	}
 	pod.Status.Phase = v1.PodRunning
 	pod.Status.Reason = ""
@@ -495,7 +527,7 @@ func (d *dcpPodManager) mobyContainersToK8sPod(containers ...moby.ContainerJSON)
 		}
 	}
 	pod.Status.ContainerStatuses = statuses
-	return &pod
+	return &pod, nil
 }
 
 func mobyContainerToK8sContainerState(podContainerName string, container moby.ContainerJSON, isInit bool) v1.ContainerStatus {
@@ -551,15 +583,4 @@ func mobyContainerToK8sContainerState(podContainerName string, container moby.Co
 		ret.State.Terminated = terminate
 	}
 	return ret
-}
-
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true
-	}
-	if os.IsNotExist(err) {
-		return false
-	}
-	return false
 }

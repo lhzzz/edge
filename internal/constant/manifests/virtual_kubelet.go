@@ -24,17 +24,15 @@ spec:
     spec:
       containers:
       - name: virtual-kubelet
-        image: registry.zhst.com/cloud-native/virtual-kubelet:latest
+        image: registry.edge.com/cloud-native/virtual-kubelet:latest
         command:
         - /home/virtual-kubelet
         args:
         - --nodename={{.NodeName}}
         - --provider-config=/home/vk-config/cci.toml
-        - --provider=zhst
-        imagePullPolicy: IfNotPresent
+        - --provider=edge
+        imagePullPolicy: Always
         env:
-        - name: JAEGER_AGENT_ENDPOINT
-          value: jaeger-agent:6831
         - name: CLUSTER_POD_IP
           valueFrom:
             fieldRef:
@@ -46,6 +44,10 @@ spec:
             readOnly: true
           - name: cci
             mountPath: /home/vk-config
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+        - 10.96.0.12
       volumes:
       - name: kube-config
         hostPath:

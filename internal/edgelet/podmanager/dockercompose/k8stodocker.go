@@ -12,6 +12,17 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const (
+	k8sappLabel = "k8s-app"
+	appLabel    = "app"
+)
+
+const (
+	networkModeHost        = "host"
+	networkModeBridge      = "bridge"
+	networkModeServiceRely = "service:"
+)
+
 type dockerComposeProject struct {
 	pod    *v1.Pod
 	config config.Config
@@ -37,14 +48,17 @@ func (dcpp *dockerComposeProject) newDockerComposeLabels(service string, isInit 
 	labels.Add(k8sNamespaceLabel, dcpp.pod.ObjectMeta.Namespace)
 	labels.Add(k8sPodNameLabel, dcpp.pod.ObjectMeta.Name)
 	jbyte, _ := json.Marshal(dcpp.pod)
-	labels.Add(k8sPodInfoLabel, string(jbyte))
+	if len(jbyte) > 0 {
+		labels.Add(k8sPodInfoLabel, string(jbyte))
+	}
 	if isInit {
 		labels.Add(k8sInitContainer, "true")
 	}
+	labels.Add(k8sFromLabel, "true")
 	return labels
 }
 
-//TODO:volumn 的sourcePath转换处理,configMap/secrets
+//volume 的sourcePath转换处理,configMap/secrets
 func (dcpp *dockerComposeProject) genSourcePath(mount v1.VolumeMount) string {
 	var index int = 0
 	for i, vo := range dcpp.pod.Spec.Volumes {
@@ -79,7 +93,7 @@ func (dcpp *dockerComposeProject) toHealthCheck(container v1.Container) *types.H
 	return nil
 }
 
-//status-host ip / podip 这些env的处理
+//env的处理
 func (dcpp *dockerComposeProject) toEnv(container v1.Container) types.MappingWithEquals {
 	envs := types.MappingWithEquals{}
 	for _, e := range container.Env {
@@ -100,6 +114,9 @@ func (dcpp *dockerComposeProject) toVolumes(container v1.Container) []types.Serv
 			Type:   types.VolumeTypeBind,
 			Source: source,
 			Target: v.MountPath,
+			Bind: &types.ServiceVolumeBind{
+				CreateHostPath: true,
+			},
 		}
 		vs = append(vs, volume)
 	}
@@ -119,6 +136,62 @@ func (dcpp *dockerComposeProject) toPort(container v1.Container) []types.Service
 	return ports
 }
 
+func (dcpp *dockerComposeProject) toNetworkMode(container v1.Container) string {
+	if dcpp.pod.Spec.HostNetwork {
+		return networkModeHost
+	}
+	//多容器Pod网络处理，都依赖于第一个容器的网络
+	if len(dcpp.pod.Spec.Containers) > 0 {
+		if dcpp.pod.Spec.Containers[0].Name != container.Name {
+			return networkModeServiceRely + makeContainerServiceName(dcpp.pod.Name, dcpp.pod.Spec.Containers[0].Name)
+		}
+	}
+	return ""
+}
+
+func (dcpp *dockerComposeProject) toServiceNetworks(isInit bool) map[string]*types.ServiceNetworkConfig {
+	aliasNames := make([]string, 0)
+	serviceName := ""
+	if !isInit {
+		serviceName = dcpp.pod.Labels[k8sappLabel]
+		if serviceName == "" {
+			serviceName = dcpp.pod.Labels[appLabel]
+		}
+	}
+	if serviceName == "" {
+		if len(dcpp.pod.OwnerReferences) > 0 {
+			serviceName = dcpp.pod.OwnerReferences[0].Name
+		}
+	}
+	if serviceName != "" {
+		aliasNames = append(aliasNames, serviceName)
+	}
+	netfield, _ := makeNetworkName(dcpp.config.Project)
+	if !dcpp.pod.Spec.HostNetwork {
+		return map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}
+	}
+	return nil
+}
+
+func (dcpp *dockerComposeProject) toPrivileged(container v1.Container) bool {
+	if container.SecurityContext != nil {
+		if container.SecurityContext.Privileged != nil {
+			return *container.SecurityContext.Privileged
+		}
+	}
+	return false
+}
+
+func (dcpp *dockerComposeProject) toExtraHosts() types.HostsList {
+	hosts := types.HostsList{}
+	for _, ha := range dcpp.pod.Spec.HostAliases {
+		for _, hostname := range ha.Hostnames {
+			hosts[hostname] = ha.IP
+		}
+	}
+	return hosts
+}
+
 //pod里面的容器转换成docker-compose的service
 func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool) types.ServiceConfig {
 	svrconf := types.ServiceConfig{}
@@ -131,22 +204,17 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 	svrconf.Environment = dcpp.toEnv(container)
 	svrconf.HealthCheck = dcpp.toHealthCheck(container)
 	svrconf.PullPolicy = types.PullPolicyIfNotPresent
-	svrconf.Restart = types.RestartPolicyOnFailure //+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
+	svrconf.Restart = types.RestartPolicyAlways //types.RestartPolicyOnFailure+ ":" + fmt.Sprint(restartTimes) //github.com/docker/compose/@v2.6.0/pkg/compose/create.go/getRestartPolicy
 	svrconf.Scale = 1
 	svrconf.Ports = dcpp.toPort(container)
-	aliasNames := make([]string, 0)
-	if !isInit {
-		if len(dcpp.pod.OwnerReferences) > 0 {
-			own := dcpp.pod.OwnerReferences[0]
-			if own.Kind != "Job" {
-				aliasNames = append(aliasNames, own.Name)
-			}
-		}
-	}
-	netfield, _ := makeNetworkName(dcpp.config.Project)
-	svrconf.Networks = map[string]*types.ServiceNetworkConfig{netfield: {Aliases: aliasNames}}
+	svrconf.Networks = dcpp.toServiceNetworks(isInit)
+	svrconf.NetworkMode = dcpp.toNetworkMode(container)
 	svrconf.Volumes = dcpp.toVolumes(container)
+	svrconf.Privileged = dcpp.toPrivileged(container)
 	svrconf.Tty = true
+	if !strings.HasPrefix(svrconf.NetworkMode, networkModeServiceRely) {
+		svrconf.ExtraHosts = dcpp.toExtraHosts() //这个会跟network_mode冲突
+	}
 	return svrconf
 }
 
@@ -155,7 +223,7 @@ func (dcpp *dockerComposeProject) toService(container v1.Container, isInit bool)
 func (dcpp *dockerComposeProject) services() types.Services {
 	services := types.Services{}
 	lastServiceName := ""
-	initServiceNames := []string{}
+	initServiceNames := make([]string, len(dcpp.pod.Spec.InitContainers))
 	for i, ic := range dcpp.pod.Spec.InitContainers {
 		svrconf := dcpp.toService(ic, true)
 		if i != 0 {
@@ -165,17 +233,13 @@ func (dcpp *dockerComposeProject) services() types.Services {
 		}
 		lastServiceName = svrconf.Name
 		services = append(services, svrconf)
-		initServiceNames = append(initServiceNames, svrconf.Name)
+		initServiceNames[i] = svrconf.Name
 	}
-	for i, c := range dcpp.pod.Spec.Containers {
+	for _, c := range dcpp.pod.Spec.Containers {
 		svrconf := dcpp.toService(c, false)
 		svrconf.DependsOn = types.DependsOnConfig{}
 		for _, isn := range initServiceNames {
 			svrconf.DependsOn[isn] = serviceCompeleteDependency
-		}
-		//多容器Pod网络处理，都依赖于第一个容器的网络
-		if i > 0 {
-			svrconf.NetworkMode = "service:" + makeContainerServiceName(dcpp.pod.Name, dcpp.pod.Spec.Containers[0].Name)
 		}
 		services = append(services, svrconf)
 	}

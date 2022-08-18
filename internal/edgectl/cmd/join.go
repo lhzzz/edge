@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/lithammer/dedent"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
@@ -27,39 +26,6 @@ var (
 		trust the Kubernetes Control Plane) and TLS bootstrap (having the
 		Kubernetes Control Plane trust the Node).
 
-		There are 2 main schemes for discovery. The first is to use a shared
-		token along with the IP address of the API server. The second is to
-		provide a file - a subset of the standard kubeconfig file. This file
-		can be a local file or downloaded via an HTTPS URL. The forms are
-		edgeadm join --discovery-token abcdef.1234567890abcdef 1.2.3.4:6443,
-		edgeadm join --discovery-file path/to/file.conf, or edgeadm join
-		--discovery-file https://url/file.conf. Only one form can be used. If
-		the discovery information is loaded from a URL, HTTPS must be used.
-		Also, in that case the host installed CA bundle is used to verify
-		the connection.
-
-		If you use a shared token for discovery, you should also pass the
-		--discovery-token-ca-cert-hash flag to validate the public key of the
-		root certificate authority (CA) presented by the Kubernetes Control Plane.
-		The value of this flag is specified as "<hash-type>:<hex-encoded-value>",
-		where the supported hash type is "sha256". The hash is calculated over
-		the bytes of the Subject Public Key Info (SPKI) object (as in RFC7469).
-		This value is available in the output of "edgeadm init" or can be
-		calculated using standard tools. The --discovery-token-ca-cert-hash flag
-		may be repeated multiple times to allow more than one public key.
-
-		If you cannot know the CA public key hash ahead of time, you can pass
-		the --discovery-token-unsafe-skip-ca-verification flag to disable this
-		verification. This weakens the edgeadm security model since other nodes
-		can potentially impersonate the Kubernetes Control Plane.
-
-		The TLS bootstrap mechanism is also driven via a shared token. This is
-		used to temporarily authenticate with the Kubernetes Control Plane to submit a
-		certificate signing request (CSR) for a locally created key pair. By
-		default, edgeadm will set up the Kubernetes Control Plane to automatically
-		approve these signing requests. This token is passed in with the
-		--tls-bootstrap-token abcdef.1234567890abcdef flag.
-
 		Often times the same token is used for both parts. In this case, the
 		--token flag can be used instead of specifying each token individually.
 		`)
@@ -68,12 +34,14 @@ var (
 type joinOptions struct {
 	nodeName        string //node的名字
 	registryAddress string //云端的地址
-	writer          io.Writer
+	stdout          io.Writer
+	stderr          io.Writer
 }
 
-func NewJoinCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
+func NewJoinCMD(stdout, stderr io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 	joinOptions := newJoinOptions()
-	joinOptions.writer = out
+	joinOptions.stdout = stdout
+	joinOptions.stderr = stderr
 	cmd := &cobra.Command{
 		Use:   "join",
 		Short: "edge join to cloud-cluster",
@@ -84,9 +52,6 @@ func NewJoinCMD(out io.Writer, cfg *EdgeCtlConfig) *cobra.Command {
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if cfg.EdgeletAddress == "" {
 				return fmt.Errorf("edgelet address is empty")
-			}
-			if joinOptions.registryAddress == "" {
-				return fmt.Errorf("please enter Cloud Registry Address")
 			}
 			if joinOptions.nodeName == "" {
 				return fmt.Errorf("please enter node-name")
@@ -117,8 +82,8 @@ func addJoinFlags(flagSet *pflag.FlagSet, joinOptions *joinOptions) {
 func joinRunner(edgeletAddress string, opt *joinOptions) error {
 	conn, err := grpc.Dial(edgeletAddress, grpc.WithInsecure()) //grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		logrus.Error("connect failed,edgeletAddress:", edgeletAddress, " err:", err)
-		return err
+		fmt.Fprintf(opt.stderr, "connect edgeletAddress %s failed, err=%v\n", edgeletAddress, err)
+		return nil
 	}
 	client := pb.NewEdgeadmClient(conn)
 	resp, err := client.Join(context.Background(), &pb.JoinRequest{
@@ -126,12 +91,13 @@ func joinRunner(edgeletAddress string, opt *joinOptions) error {
 		CloudAddress: opt.registryAddress,
 	})
 	if err != nil {
-		logrus.Error("Join failed,err=", err)
-		return err
+		fmt.Fprintf(opt.stderr, "Join failed, err=%v\n", err)
+		return nil
 	}
 	if resp.Error != nil {
-		return fmt.Errorf(resp.Error.Msg)
+		fmt.Fprintf(opt.stderr, "Join failed, err=%v\n", resp.Error.Msg)
+		return nil
 	}
-	fmt.Fprint(opt.writer, joinWorkerNodeDoneMsg)
+	fmt.Fprintln(opt.stdout, joinWorkerNodeDoneMsg)
 	return nil
 }

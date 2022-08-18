@@ -1,0 +1,8 @@
+#FROM --platform=$TARGETPLATFORM pstauffer/curl 
+FROM --platform=$TARGETPLATFORM ubuntu:18.04
+
+ADD server /usr/local/bin 
+
+RUN apt-get update && apt-get install -y curl inetutils-ping net-tools
+
+#ENTRYPOINT [ "/usr/local/bin/server" ]

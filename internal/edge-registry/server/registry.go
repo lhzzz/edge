@@ -13,8 +13,7 @@ import (
 
 func createEdgeNode(ctx context.Context, nodeName string) (bool, error) {
 	option := map[string]string{
-		"NodeName":      nodeName,
-		"NodeNamespace": constant.EdgeNameSpace,
+		"NodeName": nodeName,
 	}
 	isNeedCreate := false
 	_, err := k8sClient().CoreV1().Nodes().Get(context.TODO(), nodeName, v1.GetOptions{})
@@ -48,8 +47,7 @@ func createEdgeNode(ctx context.Context, nodeName string) (bool, error) {
 
 func deleteEdgeNode(ctx context.Context, nodeName string) error {
 	option := map[string]string{
-		"NodeName":      nodeName,
-		"NodeNamespace": constant.EdgeNameSpace,
+		"NodeName": nodeName,
 	}
 	if err := kubeclient.DeleteResourceWithFile(k8sClient(), manifests.VirtualKubeletYaml, option); err != nil {
 		return err
@@ -61,4 +59,12 @@ func deleteEdgeNode(ctx context.Context, nodeName string) error {
 		return err
 	}
 	return nil
+}
+
+func existEdgeNode(ctx context.Context, nodeName string) bool {
+	_, err := k8sClient().CoreV1().Nodes().Get(ctx, nodeName, v1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return true
 }

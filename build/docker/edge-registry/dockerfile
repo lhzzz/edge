@@ -1,5 +1,0 @@
-FROM ubuntu:20.04
-
-ADD edge-registry /usr/local/bin
-
-ENTRYPOINT ["/usr/local/bin/edge-registry"]
