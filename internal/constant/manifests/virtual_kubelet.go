@@ -44,6 +44,8 @@ spec:
             readOnly: true
           - name: cci
             mountPath: /home/vk-config
+          - name: localtime
+            mountPath: /etc/localtime    
       dnsPolicy: None
       dnsConfig:
         nameservers:
@@ -56,6 +58,10 @@ spec:
       - name: cci
         configMap:
           name: vk-config
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+          type: ""
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

@@ -24,7 +24,7 @@ then
                 cp ${BIN}/arm64/${d} ${DOCKERFILE}/${d}/mutiple/arm64
             fi
             LATEST=${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:latest
-            docker buildx build --platform ${PLATFORM} -t ${LATEST} -t ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID} ${DOCKERFILE}/${d}/mutiple/ --push
+           docker buildx build --platform ${PLATFORM} --label pipeline=${CI_COMMIT_REF_NAME}-${CI_PIPELINE_ID} -t ${LATEST} -t ${REGISTRY}/${CI_PROJECT_NAMESPACE}/${d}:${VERSION}${CI_PIPELINE_ID} ${DOCKERFILE}/${d}/mutiple/ --push
         fi
     }
     done
