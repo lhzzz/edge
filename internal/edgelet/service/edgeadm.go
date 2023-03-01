@@ -111,7 +111,7 @@ func (e *edgelet) Upgrade(ctx context.Context, req *pb.UpgradeRequest) (*pb.Upgr
 	}
 
 	if req.Component == pb.EdgeComponent_EDGECTL {
-		pberr := e.upgradeEdgelet(ctx, req.Image, req.ShellCmds)
+		pberr := e.upgradeEdgectl(ctx, req.Image, req.ShellCmds)
 		if pberr != nil {
 			resp.Error = pberr
 		}
